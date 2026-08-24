@@ -1,0 +1,19 @@
+# Environment variables & keys
+.env
+*.json
+!course_catalog.json
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# Streamlit config
+.streamlit/
+
+# OS files
+.DS_Store
+Thumbs.db
