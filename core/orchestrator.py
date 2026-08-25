@@ -72,6 +72,7 @@ class CareerCopilotADKTeam:
         
         state["skills_gap"] = gap_result.get("missing_skills", [])
         state["match_score"] = gap_result.get("match_percentage", 0.0)
+        state["analysis_method"] = gap_result.get("analysis_method", "Industry Taxonomy")
 
         # Step 3: Action Engine Stage (RAG Courses + Projects + Live Job Links)
         missing_skills = state["skills_gap"]

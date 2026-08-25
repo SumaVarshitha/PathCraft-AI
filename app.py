@@ -123,6 +123,7 @@ if st.session_state["adk_result"]:
     # -------------------------------------------------------------------
     with tab_diag:
         st.subheader("Google ADK 2.0 Skill Match Diagnostic")
+        st.info(f"⚙️ **Analysis Data Source Used**: `{res.get('analysis_method', 'TIER 2 (Industry Taxonomy Matrix)')}`")
         match_score = res.get("match_score", 0.0)
         st.metric("Target Role Match Score", f"{match_score}%", delta=f"{match_score - 100:.1f}% Gap")
         
