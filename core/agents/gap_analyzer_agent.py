@@ -49,10 +49,11 @@ class GapAnalyzerADKAgent(ADKAgent):
             client = bigquery.Client(project=self.gcp_project_id)
             
             sql_query = """
-                SELECT skill_name
-                FROM `bigquery-public-data.stackoverflow.posts_questions`
+                SELECT tag
+                FROM `bigquery-public-data.stackoverflow.posts_questions`,
+                UNNEST(SPLIT(tags, '|')) as tag
                 WHERE LOWER(title) LIKE LOWER(@role)
-                GROUP BY skill_name
+                GROUP BY tag
                 ORDER BY COUNT(*) DESC
                 LIMIT 10
             """
@@ -63,7 +64,7 @@ class GapAnalyzerADKAgent(ADKAgent):
             )
             query_job = client.query(sql_query, job_config=job_config)
             results = query_job.result()
-            skills = [row.skill_name for row in results if row.skill_name]
+            skills = [row.tag.replace('-', ' ').title() for row in results if row.tag]
             return skills if skills else None
             
         except Exception as e:
