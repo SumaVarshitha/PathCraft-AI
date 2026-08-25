@@ -55,12 +55,20 @@ with col1:
             "Cybersecurity Engineer",
             "Database Administrator",
             "Custom Role (Type Below)"
-        ]
+        ],
+        help="Pick a role from the list OR select 'Custom Role' to type any role you want."
     )
     if selected_role == "Custom Role (Type Below)":
-        target_role = st.text_input("Type Custom Target Role Name", placeholder="e.g. LLM Systems Engineer, Robotics Developer")
+        target_role = st.text_input(
+            "Type Your Custom Target Role",
+            placeholder="e.g. Prompt Engineer, Blockchain Developer, Robotics Engineer, GenAI Architect"
+        )
+        if not target_role:
+            st.warning("Please type a custom role name above to continue.")
     else:
         target_role = selected_role
+    
+    st.caption(f"Target Role: **{target_role if target_role else 'Not Set'}**")
     github_url = st.text_input("GitHub Profile URL / Username (Optional)", placeholder="https://github.com/username")
 
 with col2:

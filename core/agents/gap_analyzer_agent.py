@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 from typing import List, Dict, Any, Optional
 from google.genai import types
 import config
@@ -20,11 +21,70 @@ CORE_ROLE_TAXONOMY = {
     "mlops engineer": ["Python", "Docker", "Kubernetes", "MLflow", "Kubeflow", "CI/CD", "PyTorch", "Model Monitoring", "Git", "GCP"]
 }
 
+# Generic filler words to strip from any role title before BigQuery search
+STOP_WORDS = {"engineer", "developer", "specialist", "analyst", "architect", "lead", "senior", "junior", "staff", "principal", "manager", "consultant", "intern", "associate", "head", "vp", "director"}
+
+def extract_search_keywords(role_title: str) -> List[str]:
+    """
+    Dynamically extracts meaningful search keywords from ANY role title.
+    Examples:
+      'AI/ML Engineer'         -> ['ai', 'ml', 'machine learning']
+      'Data Engineer'          -> ['data']
+      'DevOps / SRE Engineer'  -> ['devops', 'sre']
+      'Blockchain Developer'   -> ['blockchain']
+      'Prompt Engineer'        -> ['prompt']
+      'Cloud Solutions Architect' -> ['cloud', 'solutions']
+    """
+    # 1. Lowercase and split on /, -, spaces, &
+    raw = re.split(r'[/\-&\s]+', role_title.lower().strip())
+    
+    # 2. Remove generic filler words
+    keywords = [w for w in raw if w and w not in STOP_WORDS]
+    
+    # 3. Add common synonyms/expansions for well-known abbreviations
+    expansions = {
+        "ai": ["artificial intelligence", "machine learning", "deep learning"],
+        "ml": ["machine learning"],
+        "nlp": ["natural language processing"],
+        "cv": ["computer vision"],
+        "sre": ["site reliability", "devops"],
+        "devops": ["devops", "ci cd", "infrastructure"],
+        "fullstack": ["full stack", "frontend", "backend"],
+        "frontend": ["front end", "javascript", "react"],
+        "backend": ["back end", "api", "server"],
+        "data": ["data", "database", "analytics"],
+        "cloud": ["cloud", "aws", "gcp", "azure"],
+        "mlops": ["mlops", "machine learning", "deployment"],
+        "ios": ["ios", "swift", "mobile"],
+        "android": ["android", "kotlin", "mobile"],
+        "qa": ["testing", "quality assurance", "automation testing"],
+        "security": ["cybersecurity", "security", "penetration testing"],
+        "blockchain": ["blockchain", "web3", "smart contract"],
+        "prompt": ["prompt engineering", "llm", "generative ai"],
+        "genai": ["generative ai", "llm", "large language model"],
+    }
+    
+    expanded = list(keywords)  # start with original keywords
+    for kw in keywords:
+        if kw in expansions:
+            expanded.extend(expansions[kw])
+    
+    # Deduplicate while preserving order
+    seen = set()
+    unique = []
+    for k in expanded:
+        if k not in seen:
+            seen.add(k)
+            unique.append(k)
+    
+    return unique if unique else [role_title.lower().strip()]
+
+
 class GapAnalyzerADKAgent(ADKAgent):
     """
     Google ADK 2.0 Skill Gap Analyzer Agent
     Supports 3-Tier Execution with Immediate Unbuffered Logging:
-    - Tier 1: BigQuery Live Data SQL Query
+    - Tier 1: BigQuery Live Data SQL Query (dynamic keyword extraction, works for ANY role)
     - Tier 2: Static Industry Taxonomy Matrix
     - Tier 3: Gemini 3.6 Flash Dynamic Skill Generation
     """
@@ -40,7 +100,11 @@ class GapAnalyzerADKAgent(ADKAgent):
         )
 
     def query_bigquery_live_data(self, target_role: str) -> Optional[List[str]]:
-        """Executes a live SQL query against BigQuery Public Datasets."""
+        """
+        Executes a live SQL query against BigQuery Public Datasets.
+        Dynamically extracts search keywords from ANY role title —
+        no hardcoding needed. Works for dropdown roles AND custom typed roles.
+        """
         if not self.gcp_project_id:
             return None
 
@@ -48,34 +112,49 @@ class GapAnalyzerADKAgent(ADKAgent):
             from google.cloud import bigquery
             client = bigquery.Client(project=self.gcp_project_id)
             
-            sql_query = """
-                SELECT tag
+            # Dynamically extract search keywords from any role title
+            keywords = extract_search_keywords(target_role)
+            
+            print(f"[LOG - BigQuery] Role: '{target_role}' -> Search Keywords: {keywords}", flush=True)
+            
+            # Build dynamic OR conditions: one LIKE per keyword
+            where_clauses = " OR ".join([f"LOWER(title) LIKE @kw{i}" for i in range(len(keywords))])
+            
+            sql_query = f"""
+                SELECT tag, COUNT(*) as cnt
                 FROM `bigquery-public-data.stackoverflow.posts_questions`,
                 UNNEST(SPLIT(tags, '|')) as tag
-                WHERE LOWER(title) LIKE LOWER(@role)
+                WHERE {where_clauses}
                 GROUP BY tag
-                ORDER BY COUNT(*) DESC
-                LIMIT 10
+                ORDER BY cnt DESC
+                LIMIT 15
             """
-            job_config = bigquery.QueryJobConfig(
-                query_parameters=[
-                    bigquery.ScalarQueryParameter("role", "STRING", f"%{target_role}%")
-                ]
-            )
+            
+            # Build parameterized query parameters dynamically
+            query_params = [
+                bigquery.ScalarQueryParameter(f"kw{i}", "STRING", f"%{kw}%")
+                for i, kw in enumerate(keywords)
+            ]
+            
+            job_config = bigquery.QueryJobConfig(query_parameters=query_params)
             query_job = client.query(sql_query, job_config=job_config)
             results = query_job.result()
             skills = [row.tag.replace('-', ' ').title() for row in results if row.tag]
+            
+            print(f"[LOG - BigQuery] Raw tags returned: {skills}", flush=True)
+            sys.stdout.flush()
+            
             return skills if skills else None
             
         except Exception as e:
-            print(f"⚠️ [BigQuery Notice]: Unable to query BigQuery ({e}). Falling back to Tier 2 taxonomy.", flush=True)
+            print(f"[BigQuery Notice]: Unable to query BigQuery ({e}). Falling back to Tier 2 taxonomy.", flush=True)
             return None
 
     def analyze(self, candidate_skills: List[str], target_role: str) -> Dict[str, Any]:
         role_key = target_role.strip().lower()
         method_used = ""
         
-        # 1. Tier 1: Try BigQuery Live Data SQL Query
+        # 1. Tier 1: Try BigQuery Live Data SQL Query (works for ANY role dynamically)
         required_skills = self.query_bigquery_live_data(target_role)
         if required_skills:
             method_used = "TIER 1 (GCP BigQuery Live Data SQL)"
@@ -104,7 +183,7 @@ class GapAnalyzerADKAgent(ADKAgent):
                 sys.stdout.flush()
                 return result
             except Exception as e:
-                print(f"⚠️ [ADK 2.0 Gap Analyzer Error]: {e}", flush=True)
+                print(f"[ADK 2.0 Gap Analyzer Error]: {e}", flush=True)
                 required_skills = ["Python", "SQL", "Git", "System Architecture", "Docker"]
 
         # EXPLICIT IMMEDIATE LOGGING PRINT
