@@ -13,10 +13,10 @@ import config
 
 class ADKTool:
     """Represents a tool bound to a Google ADK 2.0 Agent."""
-    def __init__(self, name: str, description: str, tool_object: Any = None):
+    def __init__(self, name: str, description: str = "", tool_object: Any = None, tool_instance: Any = None):
         self.name = name
         self.description = description
-        self.tool_object = tool_object
+        self.tool_object = tool_instance if tool_instance is not None else tool_object
 
 class ADKAgent:
     """

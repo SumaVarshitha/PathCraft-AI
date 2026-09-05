@@ -1,8 +1,5 @@
 from typing import Dict, Any
 from core.state import ADKState
-from core.adk_agent import ADKRunner
-
-# Import Google ADK 2.0 Agents
 from core.agents.resume_parser_agent import ResumeParserADKAgent
 from core.agents.github_inspector_agent import GitHubInspectorADKAgent
 from core.agents.skill_normalizer_agent import SkillNormalizerADKAgent
@@ -15,10 +12,17 @@ from core.agents.live_job_market_agent import LiveJobMarketADKAgent
 class CareerCopilotADKTeam:
     """
     Google ADK 2.0 Multi-Agent Team Orchestrator
-    Coordinates execution across specialized ADK 2.0 Agents powered by Gemini 3.6.
+    Coordinates 8 specialized autonomous agents using Model Context Protocol (MCP) tools:
+    1. ResumeParserADKAgent (Multimodal PDF/Text + Projects & Certifications extraction)
+    2. GitHubInspectorADKAgent (Candidate GitHub repo & language profiling)
+    3. SkillNormalizerADKAgent (Synonym deduplication & canonicalization)
+    4. GapAnalyzerADKAgent (3-Tier Consensus + Gemini Vector Embedding Semantic Matcher)
+    5. RAGCuratorADKAgent (Resource MCP + Search Grounding multi-format learning packs)
+    6. ProjectGeneratorADKAgent (GitHub MCP real public repository discovery)
+    7. InterviewSimulatorADKAgent (Contextual technical scenario Q&A)
+    8. LiveJobMarketADKAgent (Live job placement & direct application links)
     """
     def __init__(self):
-        # Initialize Google ADK 2.0 Agent Team
         self.resume_parser = ResumeParserADKAgent()
         self.github_inspector = GitHubInspectorADKAgent()
         self.skill_normalizer = SkillNormalizerADKAgent()
@@ -28,39 +32,26 @@ class CareerCopilotADKTeam:
         self.interview_simulator = InterviewSimulatorADKAgent()
         self.job_market_agent = LiveJobMarketADKAgent()
 
-        # Wrap in ADK Runner
-        self.runner = ADKRunner(agents=[
-            self.resume_parser,
-            self.github_inspector,
-            self.skill_normalizer,
-            self.gap_analyzer,
-            self.rag_curator,
-            self.project_generator,
-            self.interview_simulator,
-            self.job_market_agent
-        ])
-
     def run_tab1_pipeline(self, initial_state: ADKState) -> ADKState:
-        """Executes the Google ADK 2.0 Agent Team Workflow for Tab 1."""
+        """Executes the complete multi-agent pipeline with full resume context and semantic matching."""
         state = dict(initial_state)
 
-        # Step 1: Input Parsing Stage
-        resume_bytes = state.get("resume_bytes")
-        resume_text = state.get("resume_text", "")
-        github_url = state.get("github_url")
-
-        resume_data = self.resume_parser.parse(resume_text=resume_text, pdf_bytes=resume_bytes)
+        # Stage 1: Multimodal Candidate Profile Ingestion
+        resume_data = self.resume_parser.parse(
+            resume_text=state.get("resume_text"),
+            pdf_bytes=state.get("resume_bytes")
+        )
         state["resume_data"] = resume_data
+        resume_skills = resume_data.get("skills", [])
 
         github_data = None
-        if github_url:
-            github_data = self.github_inspector.inspect(github_url)
-        state["github_data"] = github_data
+        github_skills = []
+        if state.get("github_url"):
+            github_data = self.github_inspector.inspect(state["github_url"])
+            state["github_data"] = github_data
+            github_skills = github_data.get("skills", [])
 
-        # Step 2: Profiling & Gap Analysis Stage
-        resume_skills = resume_data.get("skills", [])
-        github_skills = github_data.get("detected_skills", []) if github_data else []
-
+        # Stage 2: Profile Normalization & Semantic Skill Gap Analysis
         unified_skills = self.skill_normalizer.normalize(
             resume_skills=resume_skills,
             github_skills=github_skills
@@ -68,26 +59,37 @@ class CareerCopilotADKTeam:
         state["unified_skills"] = unified_skills
 
         target_role = state.get("target_role", "Data Engineer")
-        gap_result = self.gap_analyzer.analyze(candidate_skills=unified_skills, target_role=target_role)
+        gap_result = self.gap_analyzer.analyze(
+            candidate_skills=unified_skills,
+            target_role=target_role,
+            resume_data=resume_data
+        )
         
+        state["verified_skills"] = gap_result.get("verified_skills", [])
         state["skills_gap"] = gap_result.get("missing_skills", [])
         state["match_score"] = gap_result.get("match_percentage", 0.0)
-        state["analysis_method"] = gap_result.get("analysis_method", "Industry Taxonomy")
+        state["analysis_method"] = gap_result.get("analysis_method", "Live 2026 Market Search Grounding")
+        state["semantic_matches"] = gap_result.get("semantic_matches", [])
 
-        # Step 3: Action Engine Stage (RAG Courses + Projects + Live Job Links)
+        # Stage 3: Multi-Format Learning Pack & Public GitHub Project Discovery
         missing_skills = state["skills_gap"]
 
-        curated_courses = self.rag_curator.curate(missing_skills=missing_skills)
-        state["curated_courses"] = curated_courses
+        resource_pack = self.rag_curator.curate(missing_skills=missing_skills)
+        state["learning_resources"] = resource_pack
+        state["curated_courses"] = resource_pack.get("courses", [])
 
-        project_blueprints = self.project_generator.generate(
+        discovered_projects = self.project_generator.generate(
             missing_skills=missing_skills,
             target_role=target_role
         )
-        state["project_blueprints"] = project_blueprints
+        state["project_blueprints"] = discovered_projects
+        state["github_projects"] = discovered_projects
 
-        # Step 4: Fetch Live Active Job Listings with Direct Apply Links
-        live_jobs = self.job_market_agent.fetch_live_job_postings(target_role=target_role)
+        # Stage 4: Live Job Market & Direct Application Links
+        live_jobs = self.job_market_agent.fetch_live_job_postings(
+            target_role=target_role,
+            location="us"
+        )
         state["live_jobs"] = live_jobs
 
         return state

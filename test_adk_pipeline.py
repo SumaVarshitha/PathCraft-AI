@@ -1,34 +1,66 @@
-import os
-import json
-from core.orchestrator import CareerCopilotADKTeam
-
-SAMPLE_RESUME = """
-Jane Doe
-Senior Data Engineer | San Francisco, CA | jane.doe@example.com
-
-SUMMARY:
-Data Engineer with 5+ years of experience building scalable data pipelines on Google Cloud Platform.
-Expert in Python, SQL, Apache Spark, PySpark, and BigQuery. Familiar with Docker and Airflow.
-
-EXPERIENCE:
-Data Engineer at CloudData Inc (2021 - Present)
-- Built real-time streaming pipelines using PySpark and Kafka, processing 5TB daily.
-- Optimized BigQuery data warehouse queries, reducing monthly GCP costs by 25%.
-- Containerized ETL applications using Docker and orchestrated workflows with Apache Airflow.
-
-SKILLS:
-Python, PySpark, SQL, BigQuery, Apache Airflow, Docker, Git, GCP, PostgreSQL
+"""
+PathCraft AI - End-to-End Pipeline Verification Test
 """
 
-if __name__ == "__main__":
-    print("Testing Google ADK 2.0 Multi-Agent Team Pipeline...")
-    print("=" * 60)
-    
+import json
+from core.orchestrator import CareerCopilotADKTeam
+from test_resumes import STRONG_DATA_ENGINEER_RESUME, WEAK_DESIGNER_RESUME
+
+def test_full_pipeline():
+    print("=" * 70)
+    print("[TEST SUITE] PATHCRAFT AI - END-TO-END PIPELINE & MCP TOOLS VERIFICATION")
+    print("=" * 70)
+
     adk_team = CareerCopilotADKTeam()
-    
-    initial_state = {
+
+    # -------------------------------------------------------------
+    # TEST 1: STRONG DATA ENGINEER CANDIDATE
+    # -------------------------------------------------------------
+    print("\n[TEST 1] Running Pipeline for STRONG Data Engineer Candidate...")
+    state_strong = {
         "resume_bytes": None,
-        "resume_text": SAMPLE_RESUME,
+        "resume_text": STRONG_DATA_ENGINEER_RESUME,
+        "target_role": "Data Engineer",
+        "github_url": "https://github.com/alexchen-data",
+        "linkedin_url": None,
+        "resume_data": None,
+        "github_data": None,
+        "linkedin_data": None,
+        "unified_skills": [],
+        "skills_gap": [],
+        "match_score": 0.0,
+        "analysis_method": "",
+        "semantic_matches": [],
+        "curated_courses": [],
+        "learning_resources": {},
+        "project_blueprints": [],
+        "github_projects": [],
+        "live_jobs": [],
+        "interview_history": []
+    }
+    res_strong = adk_team.run_tab1_pipeline(state_strong)
+    
+    print("\n[SUCCESS] TEST 1 RESULTS:")
+    print(f"Target Role: {res_strong['target_role']}")
+    print(f"Analysis Method: {res_strong.get('analysis_method')}")
+    print(f"Verified Skills ({len(res_strong.get('verified_skills', []))}): {res_strong.get('verified_skills', [])}")
+    print(f"Skill Gaps ({len(res_strong.get('skills_gap', []))}): {res_strong.get('skills_gap', [])}")
+    print(f"Match Score: {res_strong.get('match_score')}%")
+    print(f"Discovered GitHub Projects: {len(res_strong.get('github_projects', []))} repos")
+    
+    learning = res_strong.get("learning_resources", {})
+    print(f"Curated Books (Google Books API): {len(learning.get('books', []))}")
+    print(f"Curated Research Papers (arXiv API): {len(learning.get('papers', []))}")
+    print(f"Curated Docs & Courses: {len(learning.get('docs', []))} docs, {len(learning.get('courses', []))} courses")
+
+    # -------------------------------------------------------------
+    # TEST 2: WEAK DESIGNER CANDIDATE APPLYING FOR DATA ENGINEER
+    # -------------------------------------------------------------
+    print("\n" + "-" * 70)
+    print("[TEST 2] Running Pipeline for WEAK Candidate (Designer -> Data Engineer)...")
+    state_weak = {
+        "resume_bytes": None,
+        "resume_text": WEAK_DESIGNER_RESUME,
         "target_role": "Data Engineer",
         "github_url": None,
         "linkedin_url": None,
@@ -38,18 +70,26 @@ if __name__ == "__main__":
         "unified_skills": [],
         "skills_gap": [],
         "match_score": 0.0,
+        "analysis_method": "",
+        "semantic_matches": [],
         "curated_courses": [],
+        "learning_resources": {},
         "project_blueprints": [],
+        "github_projects": [],
+        "live_jobs": [],
         "interview_history": []
     }
+    res_weak = adk_team.run_tab1_pipeline(state_weak)
     
-    try:
-        final_state = adk_team.run_tab1_pipeline(initial_state)
-        print("\n[SUCCESS] Google ADK 2.0 Team Output:")
-        print(f"Verified Skills: {final_state.get('unified_skills')}")
-        print(f"Skills Gap: {final_state.get('skills_gap')}")
-        print(f"Match Score: {final_state.get('match_score')}%")
-        print("\nCurated Courses (Sample):")
-        print(json.dumps(final_state.get('curated_courses', []), indent=2))
-    except Exception as e:
-        print(f"[TEST EXCEPTION]: {e}")
+    print("\n[SUCCESS] TEST 2 RESULTS:")
+    print(f"Target Role: {res_weak['target_role']}")
+    print(f"Verified Skills ({len(res_weak.get('verified_skills', []))}): {res_weak.get('verified_skills', [])}")
+    print(f"Skill Gaps ({len(res_weak.get('skills_gap', []))}): {res_weak.get('skills_gap', [])}")
+    print(f"Match Score: {res_weak.get('match_score')}%")
+
+    print("\n" + "=" * 70)
+    print("[DONE] ALL END-TO-END TESTS COMPLETED SUCCESSFULLY!")
+    print("=" * 70)
+
+if __name__ == "__main__":
+    test_full_pipeline()

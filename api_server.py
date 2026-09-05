@@ -1,5 +1,5 @@
 """
-PathCraft AI - FastAPI REST API Server (Google ADK 2.0 Engine)
+PathCraft AI - FastAPI REST API Server (Google ADK 2.0 Engine & MCP Tools)
 Exposes REST endpoints for testing individual agents & running full pipeline execution.
 Interactive Swagger API Docs available at: http://localhost:8000/docs
 """
@@ -18,11 +18,11 @@ from core.state import ADKState, ResumeSchema, SkillGapResult, EvaluationResult
 # Initialize FastAPI App
 app = FastAPI(
     title="PathCraft AI - Google ADK 2.0 API Engine",
-    description="Enterprise Multi-Agent Career & Skill Engineering API powered by Google ADK 2.0 & Gemini 3.6",
-    version="2.0.0"
+    description="Enterprise Multi-Agent Career & Skill Engineering API powered by Google ADK 2.0, Vector Semantic RAG & MCP Tools",
+    version="3.0.0"
 )
 
-# Enable CORS for frontend flexibility (React / Streamlit / Mobile)
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,7 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Google ADK 2.0 Agent Team
+# Initialize Agent Team
 adk_team = CareerCopilotADKTeam()
 
 # ---------------------------------------------------------------------------
@@ -46,11 +46,12 @@ class GitHubInspectRequest(BaseModel):
 class GapAnalysisRequest(BaseModel):
     candidate_skills: List[str] = Field(description="List of candidate verified skills")
     target_role: str = Field(description="Target career job role e.g. Data Engineer")
+    resume_data: Optional[Dict[str, Any]] = Field(default=None, description="Complete parsed resume dictionary including projects")
 
 class CurateCoursesRequest(BaseModel):
-    missing_skills: List[str] = Field(description="List of missing skills to curate resources for")
+    missing_skills: List[str] = Field(description="List of missing skills to curate multi-format resources for")
 
-class GenerateProjectRequest(BaseModel):
+class DiscoverProjectsRequest(BaseModel):
     missing_skills: List[str] = Field(description="List of missing skills")
     target_role: str = Field(description="Target career role")
 
@@ -74,30 +75,30 @@ class FullPipelineRequest(BaseModel):
     target_role: str = Field(default="Data Engineer", description="Target job role")
 
 # ---------------------------------------------------------------------------
-# API Endpoints for Individual Agent Testing & Full Execution
+# API Endpoints
 # ---------------------------------------------------------------------------
-
 @app.get("/")
 def root():
     return {
         "status": "online",
-        "service": "PathCraft AI - Google ADK 2.0 API Engine",
+        "service": "PathCraft AI - Google ADK 2.0 & MCP Tools Engine",
+        "version": "3.0.0",
         "docs_url": "http://localhost:8000/docs",
         "models": [config.MODEL_FLASH, config.MODEL_PRO]
     }
 
-@app.post("/api/v1/parse-resume-text", summary="Agent 1: Parse Text Resume")
+@app.post("/api/v1/parse-resume-text", summary="Agent 1: Parse Text Resume (Full Context)")
 def parse_resume_text(req: ParseResumeTextRequest):
-    """Executes ResumeParserADKAgent to extract structured metrics from resume text."""
+    """Executes ResumeParserADKAgent to extract structured metrics and projects."""
     try:
         res = adk_team.resume_parser.parse(resume_text=req.resume_text)
         return {"status": "success", "data": res}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/parse-resume-file", summary="Agent 1: Parse PDF File Resume")
+@app.post("/api/v1/parse-resume-file", summary="Agent 1: Parse PDF File Resume (Full Context)")
 async def parse_resume_file(file: UploadFile = File(...)):
-    """Executes ResumeParserADKAgent natively on uploaded PDF resume file."""
+    """Executes ResumeParserADKAgent on uploaded PDF resume file."""
     try:
         pdf_bytes = await file.read()
         res = adk_team.resume_parser.parse(pdf_bytes=pdf_bytes)
@@ -105,43 +106,47 @@ async def parse_resume_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/inspect-github", summary="Agent 2: Inspect GitHub Repos")
+@app.post("/api/v1/inspect-github", summary="Agent 2: Inspect GitHub Profile via MCP")
 def inspect_github(req: GitHubInspectRequest):
-    """Executes GitHubInspectorADKAgent to verify code languages and repos."""
+    """Executes GitHubInspectorADKAgent to profile user repos and languages."""
     try:
         res = adk_team.github_inspector.inspect(req.github_url_or_username)
         return {"status": "success", "data": res}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/analyze-gap", summary="Agent 4: Skill Gap & Match % Analyzer")
+@app.post("/api/v1/analyze-gap", summary="Agent 4: Semantic Skill Gap Analyzer")
 def analyze_gap(req: GapAnalysisRequest):
-    """Executes GapAnalyzerADKAgent (BigQuery / Taxonomy / Gemini 3.6)."""
+    """Executes GapAnalyzerADKAgent using Gemini Vector Embeddings and cosine similarity."""
     try:
-        res = adk_team.gap_analyzer.analyze(candidate_skills=req.candidate_skills, target_role=req.target_role)
+        res = adk_team.gap_analyzer.analyze(
+            candidate_skills=req.candidate_skills,
+            target_role=req.target_role,
+            resume_data=req.resume_data
+        )
         return {"status": "success", "data": res}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/curate-courses", summary="Agent 5: Live Free Resource Curator")
-def curate_courses(req: CurateCoursesRequest):
-    """Executes RAGCuratorADKAgent with Google Search Tool grounding."""
+@app.post("/api/v1/curate-resources", summary="Agent 5: Multi-Format Learning Curator (Books, Papers, Docs, Videos)")
+def curate_resources(req: CurateCoursesRequest):
+    """Executes RAGCuratorADKAgent with ResourceMCPTool & Google Search Grounding."""
     try:
         res = adk_team.rag_curator.curate(missing_skills=req.missing_skills)
         return {"status": "success", "data": res}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/generate-project", summary="Agent 6: GitHub Project Blueprint Generator")
-def generate_project(req: GenerateProjectRequest):
-    """Executes ProjectGeneratorADKAgent powered by Gemini 3.6 Pro."""
+@app.post("/api/v1/discover-projects", summary="Agent 6: Real Public GitHub Project Discovery")
+def discover_projects(req: DiscoverProjectsRequest):
+    """Executes ProjectGeneratorADKAgent querying GitHub MCP for live public reference repos."""
     try:
         res = adk_team.project_generator.generate(missing_skills=req.missing_skills, target_role=req.target_role)
         return {"status": "success", "data": res}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/interview/question", summary="Agent 7: Generate Interview Question")
+@app.post("/api/v1/interview/question", summary="Agent 7: Generate Mock Interview Question")
 def generate_interview_question_endpoint(req: InterviewQuestionRequest):
     """Executes InterviewSimulatorADKAgent question generator."""
     try:
@@ -154,9 +159,9 @@ def generate_interview_question_endpoint(req: InterviewQuestionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/interview/evaluate", summary="Agent 7: Evaluate Interview Answer")
+@app.post("/api/v1/interview/evaluate", summary="Agent 7: Evaluate Mock Interview Answer")
 def evaluate_interview_answer_endpoint(req: InterviewEvaluateRequest):
-    """Executes InterviewSimulatorADKAgent answer scoring & feedback."""
+    """Executes InterviewSimulatorADKAgent answer scoring & constructive feedback."""
     try:
         eval_res = adk_team.interview_simulator.evaluate_answer(
             question=req.question,
@@ -167,9 +172,9 @@ def evaluate_interview_answer_endpoint(req: InterviewEvaluateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/fetch-live-jobs", summary="Agent 8: Fetch Live Job Openings")
+@app.post("/api/v1/fetch-live-jobs", summary="Agent 8: Fetch Live Job Openings with Apply Links")
 def fetch_live_jobs(req: LiveJobsRequest):
-    """Executes LiveJobMarketADKAgent to pull live postings with direct apply links."""
+    """Executes LiveJobMarketADKAgent via JobMarketMCPTool."""
     try:
         jobs = adk_team.job_market_agent.fetch_live_job_postings(target_role=req.target_role, location=req.location)
         return {"status": "success", "data": jobs}
@@ -192,8 +197,12 @@ def run_pipeline(req: FullPipelineRequest):
             "unified_skills": [],
             "skills_gap": [],
             "match_score": 0.0,
+            "analysis_method": "",
+            "semantic_matches": [],
             "curated_courses": [],
+            "learning_resources": {},
             "project_blueprints": [],
+            "github_projects": [],
             "live_jobs": [],
             "interview_history": []
         }

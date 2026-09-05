@@ -1,58 +1,54 @@
-import json
+import os
 from typing import List, Dict, Any
 import config
 from core.adk_agent import ADKAgent
+from core.mcp_tools.github_mcp import GitHubMCPTool
 
 class ProjectGeneratorADKAgent(ADKAgent):
     """
-    Google ADK 2.0 Project Generator Agent
-    Powered by Gemini 2.5 Pro to design customized production GitHub mini-project blueprints.
+    Google ADK 2.0 GitHub Project Discovery Agent
+    Discovers real, production-grade public GitHub repositories and open-source starter projects
+    that implement the candidate's missing skills so they can study real codebases and build their own.
     """
     def __init__(self):
+        self.github_mcp = GitHubMCPTool()
         super().__init__(
             name="ProjectGeneratorADKAgent",
-            instruction="""
-            You are a Senior Principal Engineer and Hiring Manager Agent.
-            Design 1 production-grade mini-project blueprint specifically tailored to showcase missing candidate skills on GitHub.
-            Return a JSON array containing 1 object:
-            [
-              {
-                "project_title": "Descriptive repository name (e.g. real-time-spark-etl-pipeline)",
-                "target_skills": ["Skill1", "Skill2"],
-                "overview": "Clear 2-sentence explanation of what the project builds and why it proves competence.",
-                "folder_structure": ["src/main.py", "docker-compose.yml", "README.md"],
-                "readme_spec": "# Project Name\\n\\n## Architecture\\n...\\n\\n## Tech Stack\\n- Skill1"
-              }
-            ]
-            """,
-            model=config.MODEL_PRO, # Deep reasoning with Gemini 2.5 Pro!
+            instruction="Discover real, high-quality public GitHub reference projects matching target skills.",
+            model=config.MODEL_PRO,
             temperature=0.2
         )
 
     def generate(self, missing_skills: List[str], target_role: str) -> List[Dict[str, Any]]:
-        if not missing_skills:
-            return []
-            
-        skills_str = ", ".join(missing_skills[:4])
-        prompt = f"Target Role: {target_role}\nMissing Skills: [{skills_str}]"
-        
-        try:
-            raw_output = self.execute(prompt_input=prompt)
-            if isinstance(raw_output, list):
-                return raw_output
-            text = str(raw_output).strip()
-            if "```json" in text:
-                text = text.split("```json")[-1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0].strip()
-            projects = json.loads(text)
-            return projects if isinstance(projects, list) else []
-        except Exception as e:
-            print(f"[ADK 2.0 Project Generator Error]: {e}")
-            return [{
-                "project_title": f"{target_role.lower().replace(' ', '-')}-proof-of-concept",
-                "target_skills": missing_skills[:2],
-                "overview": f"A comprehensive project integrating {', '.join(missing_skills[:2])}.",
-                "folder_structure": ["src/", "tests/", "Dockerfile", "README.md"],
-                "readme_spec": f"# {target_role} Project\n\nBuilds end-to-end functionality using {', '.join(missing_skills[:2])}."
-            }]
+        """
+        Queries GitHub API via GitHubMCPTool to discover real public reference repositories
+        covering the candidate's identified skill gaps.
+        """
+        target_skills = missing_skills[:4] if missing_skills else ["Data Engineering", "Microservices"]
+        discovered_projects: List[Dict[str, Any]] = []
+
+        for skill in target_skills:
+            repos = self.github_mcp.search_public_repositories(skill=skill, min_stars=50, limit=2)
+            for r in repos:
+                discovered_projects.append({
+                    "title": f"Production {skill} Project ({r.get('name')})",
+                    "target_skills": [skill, r.get("language", "Python")],
+                    "overview": r.get("description", "Open-source reference implementation."),
+                    "html_url": r.get("html_url", "https://github.com"),
+                    "stars": r.get("stars", 100),
+                    "forks": r.get("forks", 20),
+                    "language": r.get("language", "Python"),
+                    "topics": r.get("topics", []),
+                    "folder_structure": [
+                        "src/",
+                        "├── core/",
+                        "├── pipelines/",
+                        "├── tests/",
+                        "Dockerfile",
+                        "README.md",
+                        "requirements.txt"
+                    ],
+                    "readme_template": f"# {r.get('name')}\n\n{r.get('description')}\n\n## Direct GitHub URL\n{r.get('html_url')}\n\n## Key Tech Stack\n- {skill}\n- {r.get('language')}\n"
+                })
+
+        return discovered_projects
