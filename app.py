@@ -3,17 +3,18 @@ import os
 import json
 import config
 from core.orchestrator import CareerCopilotADKTeam
+from test_resumes import STRONG_DATA_ENGINEER_RESUME, WEAK_DESIGNER_RESUME
 
 # Page Setup
 st.set_page_config(
-    page_title="PathCraft AI - Google ADK 2.0 Engine",
+    page_title="PathCraft AI - Career & Skill Intelligence",
     page_icon="🚀",
     layout="wide"
 )
 
 # Header Title
 st.title("🚀 PathCraft AI - Enterprise Career & Skill Intelligence")
-st.markdown("**Powered by Google ADK 2.0, Gemini 3.6 Models, Vector Semantic RAG & Model Context Protocol (MCP)**")
+st.markdown("**Powered by Google ADK 2.0, Vector Semantic RAG & Model Context Protocol (MCP) Tools**")
 
 # Sidebar Configuration
 st.sidebar.header("🔑 Google ADK 2.0 Configuration")
@@ -25,20 +26,32 @@ if user_api_key:
 if not os.getenv("GOOGLE_API_KEY"):
     st.sidebar.warning("⚠️ Enter a `GOOGLE_API_KEY` to enable Live Search Grounding & Gemini Embeddings.")
 
+# Sample Resumes Selector in Sidebar
+st.sidebar.divider()
+st.sidebar.subheader("📄 1-Click Sample Resumes (Test Instantly)")
+sample_choice = st.sidebar.selectbox(
+    "Load Benchmark Resume Profile:",
+    ["-- Select Sample Resume --", "1. Senior Data Engineer (Strong Match)", "2. AI / ML Engineer (Strong Match)", "3. Fullstack Web Developer", "4. UI/UX Designer (Weak Data Match)"]
+)
+
 # Initialize Session State
 if "adk_team" not in st.session_state:
     st.session_state["adk_team"] = CareerCopilotADKTeam()
 if "adk_result" not in st.session_state:
     st.session_state["adk_result"] = None
-if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []
-if "current_question" not in st.session_state:
-    st.session_state["current_question"] = None
 
 # Input Form
 st.subheader("1. Candidate Profile & Target Role")
 col1, col2 = st.columns(2)
 with col1:
+    default_role_idx = 0
+    if "AI / ML" in sample_choice:
+        default_role_idx = 2
+    elif "Fullstack" in sample_choice:
+        default_role_idx = 4
+    elif "Data Engineer" in sample_choice:
+        default_role_idx = 0
+
     selected_role = st.selectbox(
         "Select Target Career Role",
         [
@@ -56,6 +69,7 @@ with col1:
             "Database Administrator",
             "Custom Role (Type Below)"
         ],
+        index=default_role_idx,
         help="Select a role from the list or choose 'Custom Role' to enter any role."
     )
     if selected_role == "Custom Role (Type Below)":
@@ -63,32 +77,46 @@ with col1:
             "Type Your Custom Target Role",
             placeholder="e.g. LLM Systems Engineer, Robotics Developer, Prompt Engineer"
         )
-        if not target_role:
-            st.warning("Please type a custom role name above.")
     else:
         target_role = selected_role
     
-    st.caption(f"🎯 Target Role: **{target_role if target_role else 'Not Set'}**")
+    st.caption(f"🎯 Selected Target Role: **{target_role if target_role else 'Data Engineer'}**")
     github_url = st.text_input("GitHub Profile URL / Username (Optional)", placeholder="https://github.com/username")
 
 with col2:
-    upload_type = st.radio("Resume Upload Format", ["Paste Text", "Upload PDF File"])
+    upload_type = st.radio("Resume Upload Format", ["Upload PDF File", "Paste Text"], horizontal=True)
     resume_text = ""
     resume_bytes = None
     
+    # Pre-fill if sample selected
+    if sample_choice == "1. Senior Data Engineer (Strong Match)":
+        resume_text = STRONG_DATA_ENGINEER_RESUME
+    elif sample_choice == "2. AI / ML Engineer (Strong Match)":
+        if os.path.exists("sample_resumes/2_AIML_Engineer.pdf"):
+            with open("sample_resumes/2_AIML_Engineer.pdf", "rb") as f:
+                resume_bytes = f.read()
+    elif sample_choice == "3. Fullstack Web Developer":
+        if os.path.exists("sample_resumes/3_Fullstack_Developer.pdf"):
+            with open("sample_resumes/3_Fullstack_Developer.pdf", "rb") as f:
+                resume_bytes = f.read()
+    elif sample_choice == "4. UI/UX Designer (Weak Data Match)":
+        resume_text = WEAK_DESIGNER_RESUME
+
     if upload_type == "Paste Text":
-        resume_text = st.text_area("Paste Resume Text (Include Skills, Experience, and Projects)", height=150, placeholder="Paste your complete resume text here...")
+        resume_text = st.text_area("Paste Resume Text (Include Skills, Experience, and Projects)", value=resume_text, height=140, placeholder="Paste complete resume text here...")
     else:
         uploaded_pdf = st.file_uploader("Upload Resume PDF", type=["pdf"])
         if uploaded_pdf:
             resume_bytes = uploaded_pdf.read()
+        elif resume_bytes:
+            st.info(f"📄 Sample PDF Loaded: `{sample_choice}`")
 
 # Run Pipeline Button
 if st.button("🚀 Run Google ADK 2.0 Multi-Agent Team", type="primary", use_container_width=True):
     if not resume_text and not resume_bytes:
-        st.error("Please paste resume text or upload a PDF resume to proceed.")
+        st.error("Please upload a PDF resume or paste resume text to proceed.")
     else:
-        with st.spinner("Executing Google ADK 2.0 Agent Team (ResumeParser ➔ SemanticGapAnalyzer ➔ MCP LearningCurator ➔ GitHubDiscovery)..."):
+        with st.spinner("Executing Google ADK 2.0 Agent Team (ResumeParser ➔ SemanticGapAnalyzer ➔ ATSAuditor ➔ LearningCurator ➔ GitHubDiscovery)..."):
             initial_state = {
                 "resume_bytes": resume_bytes,
                 "resume_text": resume_text,
@@ -103,6 +131,7 @@ if st.button("🚀 Run Google ADK 2.0 Multi-Agent Team", type="primary", use_con
                 "match_score": 0.0,
                 "analysis_method": "",
                 "semantic_matches": [],
+                "ats_audit": None,
                 "curated_courses": [],
                 "learning_resources": {},
                 "project_blueprints": [],
@@ -112,25 +141,25 @@ if st.button("🚀 Run Google ADK 2.0 Multi-Agent Team", type="primary", use_con
             }
             res = st.session_state["adk_team"].run_tab1_pipeline(initial_state)
             st.session_state["adk_result"] = res
-            st.success("✅ Multi-Agent Pipeline Execution Complete!")
+            st.success("✅ Multi-Agent Analysis Complete!")
 
-# Render Results
-if st.session_state["adk_result"]:
-    res = st.session_state["adk_result"]
-    st.divider()
-    
-    tab_diag, tab_learn, tab_interview, tab_jobs = st.tabs([
-        "📊 1. Skill Gap Diagnostic",
-        "📚 2. Free Learning & Real GitHub Projects",
-        "🎯 3. AI Technical Mock Interviewer",
-        "💼 4. Live Job Placement Hub"
-    ])
-    
-    # -------------------------------------------------------------------
-    # TAB 1: DIAGNOSTIC & SEMANTIC MATCHING
-    # -------------------------------------------------------------------
-    with tab_diag:
-        st.subheader("Google ADK 2.0 Semantic Skill Match Diagnostic")
+st.divider()
+
+# High-Value 3-Tab Architecture
+tab_diag, tab_ats, tab_learn = st.tabs([
+    "📊 1. Skill Gap Diagnostic & Semantic Scorecard",
+    "🎯 2. ATS Resume Audit & Bullet Point Optimizer",
+    "📚 3. Curated Learning Pack & Real GitHub Projects"
+])
+
+res = st.session_state["adk_result"]
+
+# -------------------------------------------------------------------
+# TAB 1: DIAGNOSTIC & SEMANTIC MATCHING
+# -------------------------------------------------------------------
+with tab_diag:
+    st.subheader("Google ADK 2.0 Semantic Skill Match Diagnostic")
+    if res:
         st.info(f"⚙️ **Requirements Data Source**: `{res.get('analysis_method', 'Live 2026 Market Search Grounding')}`")
         
         match_score = res.get("match_score", 0.0)
@@ -168,21 +197,75 @@ if st.session_state["adk_result"]:
                 })
             st.dataframe(table_data, use_container_width=True)
 
-        # Raw Parsed Resume Context Expander
-        with st.expander("🔍 View Complete Parsed Resume Data (Projects, Certifications, Tools)"):
+        with st.expander("🔍 View Complete Parsed Resume Context (Name, Projects, Certifications, Tools)"):
             st.json(res.get("resume_data", {}))
+    else:
+        st.info("👆 Upload or select a sample resume above and click **'🚀 Run Google ADK 2.0 Multi-Agent Team'** to see your live Skill Match Diagnostic!")
 
-    # -------------------------------------------------------------------
-    # TAB 2: MULTI-FORMAT LEARNING & REAL GITHUB PROJECTS
-    # -------------------------------------------------------------------
-    with tab_learn:
-        st.subheader("📚 Curated Learning Pack & Real Public GitHub Reference Projects")
+# -------------------------------------------------------------------
+# TAB 2: ATS RESUME AUDIT & BULLET POINT OPTIMIZER
+# -------------------------------------------------------------------
+with tab_ats:
+    st.subheader("🎯 ATS Resume Compatibility Audit & Power Bullet Point Optimizer")
+    if res and res.get("ats_audit"):
+        ats = res.get("ats_audit", {})
+        
+        # ATS Metric Cards
+        col_ats1, col_ats2, col_ats3, col_ats4, col_ats5 = st.columns(5)
+        with col_ats1:
+            st.metric("Overall ATS Score", f"{ats.get('ats_score', 80)}/100")
+        with col_ats2:
+            st.metric("Formatting", f"{ats.get('formatting_score', 20)}/25")
+        with col_ats3:
+            st.metric("Keyword Density", f"{ats.get('keyword_score', 25)}/35")
+        with col_ats4:
+            st.metric("Measurable Impact", f"{ats.get('impact_score', 20)}/25")
+        with col_ats5:
+            st.metric("Completeness", f"{ats.get('completeness_score', 15)}/15")
+            
+        st.divider()
+        col_str, col_fix = st.columns(2)
+        with col_str:
+            st.success("##### 🏆 ATS Strengths")
+            for s in ats.get("strengths", []):
+                st.write(f"• {s}")
+        with col_fix:
+            st.warning("##### ⚠️ Critical ATS Fixes")
+            for f in ats.get("critical_fixes", []):
+                st.write(f"• {f}")
+
+        # Missing Keywords
+        missing_kw = ats.get("missing_ats_keywords", [])
+        if missing_kw:
+            st.markdown("##### 🔑 High-Priority Missing ATS Keywords (Add to Resume)")
+            st.write(" ".join([f"`{k}`" for k in missing_kw]))
+
+        # AI Bullet Point Rewriter
+        st.divider()
+        st.subheader("✨ AI Power Bullet Point Optimizer (Before vs. After)")
+        st.caption("Rewritten using Google's XYZ Formula: 'Accomplished [X] as measured by [Y], by doing [Z]'")
+        
+        rewrites = ats.get("power_bullet_rewrites", [])
+        for r in rewrites:
+            with st.container(border=True):
+                st.markdown(f"❌ **Before (Weak)**: *\"{r.get('original')}\"*")
+                st.markdown(f"✅ **After (ATS Power Bullet)**: **\"{r.get('improved')}\"**")
+                st.info(f"💡 **Why this ranks higher**: {r.get('rationale')}")
+    else:
+        st.info("👆 Run the multi-agent analysis to generate your ATS Compatibility Score and AI Bullet Point Optimization!")
+
+# -------------------------------------------------------------------
+# TAB 3: MULTI-FORMAT LEARNING & REAL GITHUB PROJECTS
+# -------------------------------------------------------------------
+with tab_learn:
+    st.subheader("📚 Curated Learning Pack & Real Public GitHub Reference Projects")
+    if res:
         resources = res.get("learning_resources", {})
 
         # 1. Authoritative Technical Books
         books = resources.get("books", [])
         if books:
-            st.markdown("#### 📖 Authoritative Technical Books (Google Books)")
+            st.markdown("#### 📖 Authoritative Technical Books (Google Books API)")
             b_cols = st.columns(min(len(books), 2))
             for i, b in enumerate(books):
                 with b_cols[i % len(b_cols)]:
@@ -247,84 +330,5 @@ if st.session_state["adk_result"]:
                             st.write("🏷️ " + " ".join([f"`{t}`" for t in proj.get("topics", [])]))
                     with col_btn:
                         st.link_button("🐙 View GitHub Repo", proj.get("html_url", "https://github.com"), type="primary")
-
-    # -------------------------------------------------------------------
-    # TAB 3: MOCK INTERVIEWER
-    # -------------------------------------------------------------------
-    with tab_interview:
-        st.subheader("🎯 Contextual AI Technical Mock Interviewer")
-        st.write("Practicing scenario-based questions generated from your identified skill gaps.")
-        
-        interview_agent = st.session_state["adk_team"].interview_simulator
-        missing_skills = res.get("skills_gap", ["System Design", "Cloud Infrastructure"])
-        target_role = res.get("target_role", "Data Engineer")
-        
-        if st.session_state["current_question"] is None:
-            if st.button("🎲 Generate First Interview Question", key="btn_start_interview"):
-                q = interview_agent.generate_question(
-                    target_role=target_role,
-                    missing_skills=missing_skills,
-                    chat_history=st.session_state["chat_history"]
-                )
-                st.session_state["current_question"] = q
-                st.rerun()
-
-        if st.session_state["current_question"]:
-            st.info(f"**Interviewer Question**:\n\n{st.session_state['current_question']}")
-            
-            with st.form("interview_answer_form"):
-                candidate_answer = st.text_area("Your Response", height=130, placeholder="Explain your architectural reasoning, approach, and trade-offs...")
-                submitted = st.form_submit_button("Submit Response & Get AI Feedback")
-                
-                if submitted and candidate_answer:
-                    with st.spinner("AI evaluating technical precision, clarity, and trade-offs..."):
-                        eval_res = interview_agent.evaluate_answer(
-                            question=st.session_state["current_question"],
-                            candidate_answer=candidate_answer,
-                            target_role=target_role
-                        )
-                        st.session_state["chat_history"].append({
-                            "question": st.session_state["current_question"],
-                            "answer": candidate_answer,
-                            "evaluation": eval_res
-                        })
-                        next_q = interview_agent.generate_question(
-                            target_role=target_role,
-                            missing_skills=missing_skills,
-                            chat_history=st.session_state["chat_history"]
-                        )
-                        st.session_state["current_question"] = next_q
-                        st.rerun()
-
-        if st.session_state["chat_history"]:
-            st.markdown("#### 📜 Interview Session History & Feedback")
-            for i, turn in enumerate(reversed(st.session_state["chat_history"])):
-                ev = turn["evaluation"]
-                score = ev.get("score", 70)
-                icon = "🟢" if score >= 80 else ("🟡" if score >= 60 else "🔴")
-                with st.expander(f"{icon} Turn {len(st.session_state['chat_history']) - i}: Score {score}/100 - {turn['question'][:65]}..."):
-                    st.markdown(f"**Question**: {turn['question']}")
-                    st.markdown(f"**Your Answer**: {turn['answer']}")
-                    st.markdown(f"**AI Evaluation**: {ev.get('feedback')}")
-                    st.info(f"💡 **Key Improvement Takeaway**: {ev.get('key_takeaway')}")
-
-    # -------------------------------------------------------------------
-    # TAB 4: LIVE JOB PLACEMENT HUB
-    # -------------------------------------------------------------------
-    with tab_jobs:
-        st.subheader("💼 Live Job Placement Hub & Direct Application Links")
-        st.caption("Active job listings matching your target role with direct application links.")
-        
-        live_jobs = res.get("live_jobs", [])
-        if live_jobs:
-            for job in live_jobs:
-                with st.container(border=True):
-                    col_j_info, col_j_btn = st.columns([4, 1])
-                    with col_j_info:
-                        st.markdown(f"### {job.get('title')}")
-                        st.markdown(f"🏢 **{job.get('company')}** | 📍 `{job.get('location')}` | 🗓️ *{job.get('created')}*")
-                        st.write(job.get("description"))
-                        if job.get("salary_min") and job.get("salary_max"):
-                            st.caption(f"💰 **Estimated Salary**: ${job.get('salary_min'):,} - ${job.get('salary_max'):,} USD")
-                    with col_j_btn:
-                        st.link_button("🚀 Apply Now", job.get("apply_url", "https://google.com"), type="primary")
+    else:
+        st.info("👆 Run the multi-agent analysis to generate your curated Books, Research Papers, Docs, and Real GitHub projects!")

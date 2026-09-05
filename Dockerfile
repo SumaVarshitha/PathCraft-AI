@@ -1,4 +1,4 @@
-# PathCraft AI Production Dockerfile
+# PathCraft AI Production Dockerfile for GCP Cloud Run
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -11,14 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy requirements & install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt fastapi uvicorn
+RUN pip install --no-cache-dir -r requirements.txt fastapi uvicorn google-cloud-bigquery
 
 # Copy application code
 COPY . .
 
-# Expose ports for FastAPI (8000) and Streamlit (8501)
-EXPOSE 8000
-EXPOSE 8501
+# Grant execute permissions
+RUN chmod +x entrypoint.sh
 
-# Command to run FastAPI server (or Streamlit)
-CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000"]
+# Expose default Cloud Run port
+EXPOSE 8080
+
+# Run entrypoint script
+CMD ["./entrypoint.sh"]

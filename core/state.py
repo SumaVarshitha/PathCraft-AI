@@ -57,3 +57,4 @@ class ADKState(TypedDict):
     github_projects: List[Dict[str, Any]]
     live_jobs: List[Dict[str, Any]]
     interview_history: List[Dict[str, Any]]
+    ats_audit: Optional[Dict[str, Any]]

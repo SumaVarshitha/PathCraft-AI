@@ -1,6 +1,8 @@
 import os
 import re
+import io
 from typing import Dict, Any, Optional, List
+import pypdf
 from google import genai
 from google.genai import types
 import config
@@ -8,20 +10,36 @@ from core.adk_agent import ADKAgent
 from core.state import ResumeSchema
 
 KNOWN_TECH_VOCABULARY = [
-    "Python", "SQL", "Scala", "Java", "C++", "JavaScript", "TypeScript", "Bash",
+    "Python", "SQL", "Scala", "Java", "C++", "C#", "JavaScript", "TypeScript", "Bash", "R", "Go", "Rust",
     "Apache Spark", "PySpark", "Apache Kafka", "Hadoop", "Flink",
     "Google Cloud Platform", "GCP", "BigQuery", "Snowflake", "Amazon Redshift", "AWS", "Azure",
     "Apache Airflow", "Docker", "Kubernetes", "Terraform", "Git", "CI/CD", "Linux",
     "dbt", "ETL", "ELT", "Data Warehousing", "PostgreSQL", "MySQL", "MongoDB", "Redis",
-    "PyTorch", "TensorFlow", "Scikit-Learn", "FastAPI", "React", "Node.js",
-    "Figma", "Adobe Photoshop", "Adobe Illustrator", "HTML5", "CSS3", "HTML", "CSS"
+    "PyTorch", "TensorFlow", "Scikit-Learn", "Keras", "HuggingFace", "LangChain", "LlamaIndex",
+    "Vector Databases", "Pinecone", "ChromaDB", "LLMs", "Generative AI", "Deep Learning", "Machine Learning",
+    "FastAPI", "React", "Next.js", "Node.js", "Express.js", "Tailwind CSS", "HTML5", "CSS3", "HTML", "CSS",
+    "Figma", "Adobe Photoshop", "Adobe Illustrator", "User Research", "Wireframing", "REST APIs", "GraphQL"
 ]
+
+def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
+    """Extracts raw text from PDF bytes using pypdf."""
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+        extracted_pages = []
+        for i, page in enumerate(reader.pages):
+            text = page.extract_text()
+            if text:
+                extracted_pages.append(text)
+        return "\n\n".join(extracted_pages).strip()
+    except Exception as e:
+        print(f"[PDF Extract Notice]: Error reading PDF text ({e})", flush=True)
+        return ""
 
 class ResumeParserADKAgent(ADKAgent):
     """
     Google ADK 2.0 Resume Parser Agent
-    Extracts complete, structured candidate profile context (skills, projects with tech stacks,
-    certifications, experience, tools) from raw resume text or multimodal PDF uploads.
+    Extracts complete candidate profile context (skills, projects, certifications, tools)
+    from raw resume text or multimodal PDF uploads.
     """
     def __init__(self):
         instruction = """
@@ -50,34 +68,54 @@ class ResumeParserADKAgent(ADKAgent):
             if re.search(pattern, text_lower):
                 found_skills.append(tech)
 
+        # Extract name from first line
+        lines = [line.strip() for line in resume_text.split("\n") if line.strip()]
+        cand_name = lines[0] if lines and len(lines[0]) < 40 else "Candidate"
+
         # Extract projects if present
         projects = []
         if "project" in text_lower:
-            proj_skills = [s for s in found_skills if s in ["Python", "PySpark", "Apache Spark", "BigQuery", "Docker", "Git", "Figma", "HTML5", "CSS3"]]
+            proj_skills = [s for s in found_skills if s in ["Python", "PySpark", "Apache Spark", "BigQuery", "Docker", "Git", "PyTorch", "TensorFlow", "React", "Node.js", "Figma", "HTML5", "CSS3"]]
             projects.append({
-                "title": "Production Engineering Project",
+                "title": "Featured Production Project",
                 "description": "Implementation detailed in candidate resume.",
-                "tech_stack": proj_skills,
-                "key_contributions": "Designed and deployed system components."
+                "tech_stack": proj_skills[:6] if proj_skills else ["Python", "SQL"],
+                "key_contributions": "Designed, developed, and deployed system components."
             })
 
+        # Extract certifications
+        certs = []
+        if "google cloud" in text_lower or "gcp" in text_lower:
+            certs.append("Google Cloud Certified")
+        if "aws" in text_lower:
+            certs.append("AWS Certified")
+
         return {
-            "candidate_name": "Candidate",
-            "job_title": "Engineer / Specialist",
+            "candidate_name": cand_name,
+            "job_title": "Software / Data Engineer",
             "skills": found_skills,
-            "years_experience": 4.0 if len(found_skills) > 5 else 1.5,
-            "education": ["University Degree"],
-            "work_summary": "Extracted professional profile.",
+            "years_experience": 4.0 if len(found_skills) > 6 else 2.0,
+            "education": ["Computer Science / Engineering Degree"],
+            "work_summary": f"Professional profile with verified competencies in {', '.join(found_skills[:5])}.",
             "projects": projects,
-            "certifications": ["GCP Certified" if "gcp" in text_lower else ""],
+            "certifications": certs,
             "tools_and_technologies": found_skills
         }
 
     def parse(self, resume_text: Optional[str] = None, pdf_bytes: Optional[bytes] = None) -> Dict[str, Any]:
         """Parses resume text or PDF bytes into structured ResumeSchema dictionary."""
+        # Refresh API key dynamically
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if api_key and not self.client:
+            self.client = genai.Client(api_key=api_key)
+
+        extracted_text = resume_text or ""
+        if pdf_bytes and not extracted_text:
+            extracted_text = extract_text_from_pdf_bytes(pdf_bytes)
+
         if not self.client:
-            if resume_text:
-                return self._offline_fallback_parse(resume_text)
+            if extracted_text:
+                return self._offline_fallback_parse(extracted_text)
             return {
                 "candidate_name": "Applicant",
                 "job_title": "Software Engineer",
@@ -91,30 +129,12 @@ class ResumeParserADKAgent(ADKAgent):
             }
 
         try:
-            if pdf_bytes:
-                pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
-                prompt = "Please parse this PDF resume thoroughly into the structured ResumeSchema format."
-                response = self.client.models.generate_content(
-                    model=self.model,
-                    contents=[pdf_part, prompt],
-                    config=types.GenerateContentConfig(
-                        system_instruction=self.instruction,
-                        temperature=self.temperature,
-                        response_mime_type="application/json",
-                        response_schema=ResumeSchema
-                    )
-                )
-                return response.parsed.model_dump() if response.parsed else {"skills": [], "projects": []}
-            
-            elif resume_text:
-                prompt = f"Please parse this candidate resume text thoroughly:\n\n{resume_text}"
-                return self.execute(prompt_input=prompt)
-            else:
-                return {"skills": [], "projects": [], "tools_and_technologies": []}
+            prompt = f"Please parse this candidate resume text thoroughly into structured ResumeSchema JSON:\n\n{extracted_text}"
+            return self.execute(prompt_input=prompt)
         except Exception as e:
-            print(f"⚠️ [ADK 2.0 Resume Parser Notice]: ({e}). Using heuristic extraction.", flush=True)
-            if resume_text:
-                return self._offline_fallback_parse(resume_text)
+            print(f"[ADK 2.0 Resume Parser Notice]: ({e}). Using heuristic extraction.", flush=True)
+            if extracted_text:
+                return self._offline_fallback_parse(extracted_text)
             return {
                 "candidate_name": "Applicant",
                 "job_title": "Engineer",
