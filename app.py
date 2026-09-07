@@ -3,6 +3,7 @@ import os
 import json
 import config
 from core.orchestrator import CareerCopilotADKTeam
+from core.agents.resume_generator_agent import generate_ats_pdf
 from test_resumes import STRONG_DATA_ENGINEER_RESUME, WEAK_DESIGNER_RESUME
 
 # Page Setup
@@ -116,7 +117,7 @@ if st.button("🚀 Run Google ADK 2.0 Multi-Agent Team", type="primary", use_con
     if not resume_text and not resume_bytes:
         st.error("Please upload a PDF resume or paste resume text to proceed.")
     else:
-        with st.spinner("Executing Google ADK 2.0 Agent Team (ResumeParser ➔ SemanticGapAnalyzer ➔ ATSAuditor ➔ LearningCurator ➔ GitHubDiscovery)..."):
+        with st.spinner("Executing Google ADK 2.0 Agent Team (ResumeParser ➔ SemanticGapAnalyzer ➔ ATSAuditor ➔ RoadmapArchitect ➔ LearningCurator ➔ GitHubDiscovery)..."):
             initial_state = {
                 "resume_bytes": resume_bytes,
                 "resume_text": resume_text,
@@ -132,6 +133,8 @@ if st.button("🚀 Run Google ADK 2.0 Multi-Agent Team", type="primary", use_con
                 "analysis_method": "",
                 "semantic_matches": [],
                 "ats_audit": None,
+                "career_roadmap": None,
+                "tailored_resume": None,
                 "curated_courses": [],
                 "learning_resources": {},
                 "project_blueprints": [],
@@ -141,15 +144,16 @@ if st.button("🚀 Run Google ADK 2.0 Multi-Agent Team", type="primary", use_con
             }
             res = st.session_state["adk_team"].run_tab1_pipeline(initial_state)
             st.session_state["adk_result"] = res
-            st.success("✅ Multi-Agent Analysis Complete!")
+            st.success("✅ Multi-Agent Analysis & Roadmap Synthesis Complete!")
 
 st.divider()
 
-# High-Value 3-Tab Architecture
-tab_diag, tab_ats, tab_learn = st.tabs([
-    "📊 1. Skill Gap Diagnostic & Semantic Scorecard",
-    "🎯 2. ATS Resume Audit & Bullet Point Optimizer",
-    "📚 3. Curated Learning Pack & Real GitHub Projects"
+# Clean 4-Hub Interface
+tab_diag, tab_ats, tab_roadmap, tab_learn = st.tabs([
+    "📊 1. Skill Gap Diagnostic",
+    "🎯 2. ATS Audit & Resume Exporter",
+    "📅 3. 30-60-90 Day Action Roadmap",
+    "📚 4. Learning Pack & GitHub Repos"
 ])
 
 res = st.session_state["adk_result"]
@@ -203,10 +207,10 @@ with tab_diag:
         st.info("👆 Upload or select a sample resume above and click **'🚀 Run Google ADK 2.0 Multi-Agent Team'** to see your live Skill Match Diagnostic!")
 
 # -------------------------------------------------------------------
-# TAB 2: ATS RESUME AUDIT & BULLET POINT OPTIMIZER
+# TAB 2: ATS RESUME AUDIT & 1-CLICK TAILORED RESUME EXPORTER
 # -------------------------------------------------------------------
 with tab_ats:
-    st.subheader("🎯 ATS Resume Compatibility Audit & Power Bullet Point Optimizer")
+    st.subheader("🎯 ATS Resume Compatibility Audit & 1-Click Tailored Resume Exporter")
     if res and res.get("ats_audit"):
         ats = res.get("ats_audit", {})
         
@@ -237,7 +241,7 @@ with tab_ats:
         # Missing Keywords
         missing_kw = ats.get("missing_ats_keywords", [])
         if missing_kw:
-            st.markdown("##### 🔑 High-Priority Missing ATS Keywords (Add to Resume)")
+            st.markdown("##### 🔑 High-Priority Missing ATS Keywords")
             st.write(" ".join([f"`{k}`" for k in missing_kw]))
 
         # AI Bullet Point Rewriter
@@ -251,11 +255,99 @@ with tab_ats:
                 st.markdown(f"❌ **Before (Weak)**: *\"{r.get('original')}\"*")
                 st.markdown(f"✅ **After (ATS Power Bullet)**: **\"{r.get('improved')}\"**")
                 st.info(f"💡 **Why this ranks higher**: {r.get('rationale')}")
+
+        # 1-Click Tailored Resume Exporter Section
+        tailored = res.get("tailored_resume")
+        if tailored:
+            st.divider()
+            st.subheader("📥 1-Click Tailored ATS-Optimized Resume Exporter")
+            st.caption("Download your recruiter-ready, ATS-compliant tailored resume in PDF or Markdown format.")
+            
+            pdf_bytes_out = generate_ats_pdf(tailored)
+            md_content = tailored.get("markdown_content", "# Resume")
+            
+            col_dl_pdf, col_dl_md = st.columns(2)
+            with col_dl_pdf:
+                st.download_button(
+                    label="📄 Download Tailored Resume (PDF)",
+                    data=pdf_bytes_out,
+                    file_name=f"{tailored.get('candidate_name', 'Tailored')}_{target_role.replace(' ', '_')}_Resume.pdf",
+                    mime="application/pdf",
+                    type="primary",
+                    use_container_width=True
+                )
+            with col_dl_md:
+                st.download_button(
+                    label="📝 Download Tailored Resume (Markdown)",
+                    data=md_content,
+                    file_name=f"{tailored.get('candidate_name', 'Tailored')}_{target_role.replace(' ', '_')}_Resume.md",
+                    mime="text/markdown",
+                    use_container_width=True
+                )
+
+            with st.expander("👁️ Preview Tailored Resume Content"):
+                st.markdown(md_content)
     else:
-        st.info("👆 Run the multi-agent analysis to generate your ATS Compatibility Score and AI Bullet Point Optimization!")
+        st.info("👆 Run the multi-agent analysis to generate your ATS Compatibility Score and 1-Click Tailored Resume!")
 
 # -------------------------------------------------------------------
-# TAB 3: MULTI-FORMAT LEARNING & REAL GITHUB PROJECTS
+# TAB 3: 30-60-90 DAY CAREER ACTION ROADMAP
+# -------------------------------------------------------------------
+with tab_roadmap:
+    st.subheader("📅 Personalized 30-60-90 Day Upskilling Action Roadmap")
+    if res and res.get("career_roadmap"):
+        rm = res.get("career_roadmap", {})
+        st.caption(f"🎯 **Target Trajectory**: {rm.get('executive_summary', 'Structured career roadmap.')}")
+        
+        # Phase 1
+        p1 = rm.get("phase_1_foundations", {})
+        with st.expander(f"🟢 {p1.get('phase_title', 'Phase 1: Core Fundamentals')} ({p1.get('duration_days', 'Days 1-30')})", expanded=True):
+            st.markdown("**Key Phase Objectives:**")
+            for obj in p1.get("key_objectives", []):
+                st.write(f"• {obj}")
+            st.divider()
+            st.markdown("**Weekly Milestone Actions:**")
+            for w in p1.get("weeks", []):
+                st.markdown(f"**Week {w.get('week_number')}: {w.get('focus_topic')}**")
+                for act in w.get("action_items", []):
+                    st.checkbox(f"{act}", key=f"p1_w{w.get('week_number')}_{act[:20]}")
+                st.caption(f"📦 *Weekly Deliverable: {w.get('learning_deliverable')}*")
+                st.write("")
+
+        # Phase 2
+        p2 = rm.get("phase_2_architecture", {})
+        with st.expander(f"🟡 {p2.get('phase_title', 'Phase 2: Systems & Architecture')} ({p2.get('duration_days', 'Days 31-60')})", expanded=False):
+            st.markdown("**Key Phase Objectives:**")
+            for obj in p2.get("key_objectives", []):
+                st.write(f"• {obj}")
+            st.divider()
+            st.markdown("**Weekly Milestone Actions:**")
+            for w in p2.get("weeks", []):
+                st.markdown(f"**Week {w.get('week_number')}: {w.get('focus_topic')}**")
+                for act in w.get("action_items", []):
+                    st.checkbox(f"{act}", key=f"p2_w{w.get('week_number')}_{act[:20]}")
+                st.caption(f"📦 *Weekly Deliverable: {w.get('learning_deliverable')}*")
+                st.write("")
+
+        # Phase 3
+        p3 = rm.get("phase_3_portfolio_launch", {})
+        with st.expander(f"🔵 {p3.get('phase_title', 'Phase 3: Independent Portfolio & Launch')} ({p3.get('duration_days', 'Days 61-90')})", expanded=False):
+            st.markdown("**Key Phase Objectives:**")
+            for obj in p3.get("key_objectives", []):
+                st.write(f"• {obj}")
+            st.divider()
+            st.markdown("**Weekly Milestone Actions:**")
+            for w in p3.get("weeks", []):
+                st.markdown(f"**Week {w.get('week_number')}: {w.get('focus_topic')}**")
+                for act in w.get("action_items", []):
+                    st.checkbox(f"{act}", key=f"p3_w{w.get('week_number')}_{act[:20]}")
+                st.caption(f"📦 *Weekly Deliverable: {w.get('learning_deliverable')}*")
+                st.write("")
+    else:
+        st.info("👆 Run the multi-agent analysis to synthesize your personalized 30-60-90 day career action roadmap!")
+
+# -------------------------------------------------------------------
+# TAB 4: MULTI-FORMAT LEARNING & REAL GITHUB PROJECTS
 # -------------------------------------------------------------------
 with tab_learn:
     st.subheader("📚 Curated Learning Pack & Real Public GitHub Reference Projects")

@@ -58,3 +58,5 @@ class ADKState(TypedDict):
     live_jobs: List[Dict[str, Any]]
     interview_history: List[Dict[str, Any]]
     ats_audit: Optional[Dict[str, Any]]
+    career_roadmap: Optional[Dict[str, Any]]
+    tailored_resume: Optional[Dict[str, Any]]

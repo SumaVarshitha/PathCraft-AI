@@ -9,20 +9,23 @@ from core.agents.project_generator_agent import ProjectGeneratorADKAgent
 from core.agents.interview_simulator_agent import InterviewSimulatorADKAgent
 from core.agents.live_job_market_agent import LiveJobMarketADKAgent
 from core.agents.ats_analyzer_agent import ATSAnalyzerADKAgent
+from core.agents.roadmap_agent import RoadmapADKAgent
+from core.agents.resume_generator_agent import ResumeGeneratorADKAgent
 
 class CareerCopilotADKTeam:
     """
     Google ADK 2.0 Multi-Agent Team Orchestrator
-    Coordinates 9 specialized autonomous agents using Model Context Protocol (MCP) tools:
+    Coordinates 10 specialized autonomous agents using Model Context Protocol (MCP) tools:
     1. ResumeParserADKAgent (Multimodal PDF/Text + Projects & Certifications extraction)
     2. GitHubInspectorADKAgent (Candidate GitHub repo & language profiling)
     3. SkillNormalizerADKAgent (Synonym deduplication & canonicalization)
     4. GapAnalyzerADKAgent (3-Tier Consensus + Gemini Vector Embedding Semantic Matcher)
     5. ATSAnalyzerADKAgent (ATS Compatibility Scoring & Power Bullet Point Optimizer)
-    6. RAGCuratorADKAgent (Resource MCP + Search Grounding multi-format learning packs)
-    7. ProjectGeneratorADKAgent (GitHub MCP real public repository discovery)
-    8. InterviewSimulatorADKAgent (Contextual technical scenario Q&A)
-    9. LiveJobMarketADKAgent (Live job placement & direct application links)
+    6. RoadmapADKAgent (Personalized 30-60-90 Day Upskilling Roadmap Architect)
+    7. ResumeGeneratorADKAgent (1-Click ATS-Optimized Tailored Resume Generator)
+    8. RAGCuratorADKAgent (Resource MCP + Search Grounding multi-format learning packs)
+    9. ProjectGeneratorADKAgent (GitHub MCP real public repository discovery)
+    10. LiveJobMarketADKAgent (Live job placement & direct application links)
     """
     def __init__(self):
         self.resume_parser = ResumeParserADKAgent()
@@ -30,13 +33,15 @@ class CareerCopilotADKTeam:
         self.skill_normalizer = SkillNormalizerADKAgent()
         self.gap_analyzer = GapAnalyzerADKAgent()
         self.ats_analyzer = ATSAnalyzerADKAgent()
+        self.roadmap_agent = RoadmapADKAgent()
+        self.resume_generator = ResumeGeneratorADKAgent()
         self.rag_curator = RAGCuratorADKAgent()
         self.project_generator = ProjectGeneratorADKAgent()
         self.interview_simulator = InterviewSimulatorADKAgent()
         self.job_market_agent = LiveJobMarketADKAgent()
 
     def run_tab1_pipeline(self, initial_state: ADKState) -> ADKState:
-        """Executes the complete multi-agent pipeline with full resume context, semantic matching, and ATS audit."""
+        """Executes the complete multi-agent pipeline with full resume context, semantic matching, roadmap, and tailored resume."""
         state = dict(initial_state)
 
         # Stage 1: Multimodal Candidate Profile Ingestion
@@ -80,17 +85,32 @@ class CareerCopilotADKTeam:
         state["analysis_method"] = gap_result.get("analysis_method", "Live 2026 Market Search Grounding")
         state["semantic_matches"] = gap_result.get("semantic_matches", [])
 
-        # Stage 3: ATS Resume Compatibility Audit & Bullet Point Optimizer
+        # Stage 3: ATS Resume Compatibility Audit
+        missing_skills = state["skills_gap"]
         ats_audit = self.ats_analyzer.audit(
             resume_text=resume_text or str(resume_data),
             target_role=target_role,
-            missing_skills=state["skills_gap"]
+            missing_skills=missing_skills
         )
         state["ats_audit"] = ats_audit
 
-        # Stage 4: Multi-Format Learning Pack & Public GitHub Project Discovery
-        missing_skills = state["skills_gap"]
+        # Stage 4: 1-Click Tailored ATS-Optimized Resume Generator
+        tailored_resume = self.resume_generator.generate(
+            resume_data=resume_data,
+            target_role=target_role,
+            missing_skills=missing_skills
+        )
+        state["tailored_resume"] = tailored_resume
 
+        # Stage 5: Personalized 30-60-90 Day Upskilling Roadmap
+        roadmap = self.roadmap_agent.generate_roadmap(
+            target_role=target_role,
+            missing_skills=missing_skills,
+            candidate_summary=resume_data.get("work_summary", "")
+        )
+        state["career_roadmap"] = roadmap
+
+        # Stage 6: Multi-Format Learning Pack & Public GitHub Project Discovery
         resource_pack = self.rag_curator.curate(missing_skills=missing_skills)
         state["learning_resources"] = resource_pack
         state["curated_courses"] = resource_pack.get("courses", [])
@@ -102,7 +122,7 @@ class CareerCopilotADKTeam:
         state["project_blueprints"] = discovered_projects
         state["github_projects"] = discovered_projects
 
-        # Stage 5: Live Job Market & Direct Application Links
+        # Stage 7: Live Job Market & Direct Application Links
         live_jobs = self.job_market_agent.fetch_live_job_postings(
             target_role=target_role,
             location="us"
