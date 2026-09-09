@@ -323,28 +323,13 @@ class GapAnalyzerADKAgent(ADKAgent):
                         superpowers_found.append(sp)
                     break
 
-        # Step 5: Alternate High-Match Role Recommendations
-        alternate_roles = []
-        has_agentic = any(s in superpowers_found for s in ["LangGraph", "Multi-Agent Systems", "RAG", "Tool-Calling", "GenSQL"])
-        has_data = any(s in superpowers_found for s in ["Apache Spark", "Snowflake", "BigQuery", "Terraform"])
-        
-        if has_agentic:
-            alternate_roles.append({
-                "role": "GenAI & LLM Systems Engineer",
-                "estimated_match": "94%",
-                "rationale": "Your demonstrated mastery in LangGraph, RAG, Multi-Agent Reasoning, and Tool-Calling gives you a top 5% competitive advantage for this role."
-            })
-            alternate_roles.append({
-                "role": "AI Agent Systems Architect",
-                "estimated_match": "91%",
-                "rationale": "High-impact autonomous agent workflows and state graph implementations directly align with modern agentic system engineering."
-            })
-        if has_data and not has_agentic:
-            alternate_roles.append({
-                "role": "Data & AI Platform Engineer",
-                "estimated_match": "90%",
-                "rationale": "Strong cloud data infrastructure, distributed querying, and orchestration skills."
-            })
+        # Step 5: Dynamic Alternate High-Match Role Recommendations (Gemini-powered, non-hardcoded)
+        alternate_roles = self._compute_alternate_roles_dynamic(
+            superpowers_found=superpowers_found,
+            verified_skills=verified_skills,
+            candidate_skills=candidate_skills,
+            target_role=target_role
+        )
 
         # Step 6: 2-Tier Weighted Score Calculation
         core_pct = (verified_core_count / len(core_skills) * 100) if core_skills else 0.0
@@ -370,3 +355,123 @@ class GapAnalyzerADKAgent(ADKAgent):
             "analysis_method": method_used,
             "required_skills": core_skills + differentiator_skills
         }
+
+    def _compute_alternate_roles_dynamic(
+        self,
+        superpowers_found: List[str],
+        verified_skills: List[str],
+        candidate_skills: List[str],
+        target_role: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Dynamically computes alternate high-match role recommendations using Gemini.
+        Match percentages are grounded in the candidate's actual verified evidence —
+        never hardcoded. Falls back to evidence-based computation when API is offline.
+        """
+        all_evidence = list(set(superpowers_found + verified_skills + candidate_skills))
+        evidence_str = ", ".join(all_evidence[:30]) if all_evidence else "General software engineering skills"
+
+        if self.client and all_evidence:
+            try:
+                prompt = f"""
+You are a senior technical recruiter with expertise in 2026 job market trends.
+
+A candidate applying for "{target_role}" has the following VERIFIED skills and superpowers (evidence-backed):
+{evidence_str}
+
+Based ONLY on these verified competencies, recommend 2-3 alternate high-match job titles where this candidate would be extremely competitive.
+
+For each role:
+1. Choose roles that genuinely match their evidence stack (not generic roles).
+2. Compute estimated_match as an integer percentage (65-98%) reflecting how many of their verified skills directly apply to that role's typical requirements. Be realistic and specific.
+3. Write a 1-2 sentence rationale grounded in their specific verified skills — name the actual skills.
+
+Return ONLY valid JSON:
+[
+  {{
+    "role": "Exact Job Title",
+    "estimated_match": 87,
+    "rationale": "Specific rationale mentioning their actual verified skills."
+  }}
+]
+"""
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.2
+                    )
+                )
+                text = response.text.strip()
+                if "```json" in text:
+                    text = text.split("```json")[-1].split("```")[0].strip()
+                elif "```" in text:
+                    text = text.split("```")[1].split("```")[0].strip()
+                if "[" in text:
+                    text = text[text.find("["):text.rfind("]") + 1]
+
+                roles_raw = json.loads(text)
+                result = []
+                for r in roles_raw:
+                    if isinstance(r, dict) and r.get("role"):
+                        match_val = r.get("estimated_match", 80)
+                        # Ensure it's formatted as a percentage string
+                        if isinstance(match_val, (int, float)):
+                            match_str = f"{int(round(match_val))}%"
+                        else:
+                            match_str = str(match_val).replace("%", "").strip() + "%"
+                        result.append({
+                            "role": r["role"],
+                            "estimated_match": match_str,
+                            "rationale": r.get("rationale", "Strong skill alignment detected.")
+                        })
+                if result:
+                    return result
+            except Exception as e:
+                print(f"[GapAnalyzer Alternate Roles Notice]: {e}", flush=True)
+
+        # Offline evidence-based fallback (no hardcoded percentages)
+        fallback_roles: List[Dict[str, Any]] = []
+        sp_lower = {s.lower() for s in superpowers_found}
+        v_lower = {s.lower() for s in verified_skills + candidate_skills}
+
+        # Compute match % as fraction of known role requirements met
+        role_requirements = {
+            "GenAI & LLM Systems Engineer": ["langgraph", "rag", "tool-calling", "llm", "langchain", "multi-agent", "python", "fastapi"],
+            "AI Agent Systems Architect": ["langgraph", "multi-agent", "agentic", "rag", "tool-calling", "python", "system design"],
+            "MLOps Engineer": ["docker", "kubernetes", "ci/cd", "python", "mlflow", "terraform", "gcp", "aws"],
+            "DevOps & Platform Engineer": ["docker", "kubernetes", "terraform", "jenkins", "ci/cd", "gcp", "aws", "linux"],
+            "Data & AI Platform Engineer": ["bigquery", "spark", "sql", "python", "airflow", "dbt", "snowflake", "gcp"],
+            "Backend / API Engineer": ["python", "fastapi", "postgresql", "docker", "rest", "microservices", "sql"],
+            "Cloud Infrastructure Engineer": ["terraform", "gcp", "aws", "kubernetes", "ci/cd", "linux", "docker"],
+        }
+
+        def compute_match(reqs: List[str]) -> int:
+            hits = sum(1 for req in reqs if req in sp_lower or req in v_lower)
+            return min(97, max(55, int(round((hits / len(reqs)) * 100))))
+
+        def build_rationale(role_name: str, reqs: List[str]) -> str:
+            matched = [r for r in reqs if r in sp_lower or r in v_lower]
+            named = ", ".join(s.upper() for s in matched[:4]) if matched else "core software engineering skills"
+            return f"Verified competencies in {named} directly satisfy key requirements for {role_name}."
+
+        # Score all roles and pick top 3 non-target roles
+        scored = []
+        target_lower = target_role.lower()
+        for role_name, reqs in role_requirements.items():
+            if any(w in target_lower for w in role_name.lower().split() if len(w) > 4):
+                continue  # skip if too similar to target
+            pct = compute_match(reqs)
+            if pct >= 60:
+                scored.append((pct, role_name, reqs))
+
+        scored.sort(key=lambda x: -x[0])
+        for pct, role_name, reqs in scored[:3]:
+            fallback_roles.append({
+                "role": role_name,
+                "estimated_match": f"{pct}%",
+                "rationale": build_rationale(role_name, reqs)
+            })
+
+        return fallback_roles

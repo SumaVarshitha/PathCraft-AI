@@ -61,8 +61,24 @@ class CareerCopilotADKTeam:
         github_skills = []
         if st.get("github_url"):
             github_data = self.github_inspector.inspect(st["github_url"])
-            st["github_data"] = github_data
-            github_skills = github_data.get("skills", [])
+            # GitHubInspectorADKAgent returns 'detected_skills' and 'top_repos'
+            # Normalize to consistent keys for gap analyzer (expects 'languages' + 'top_repositories')
+            github_data_normalized = {
+                "username": github_data.get("username", ""),
+                "languages": github_data.get("detected_skills", []),
+                "top_repositories": [
+                    {
+                        "name": r.get("name", ""),
+                        "language": r.get("language", ""),
+                        "stars": r.get("stars", 0),
+                        "description": r.get("description", "")
+                    }
+                    for r in github_data.get("top_repos", [])
+                ]
+            }
+            st["github_data"] = github_data_normalized
+            github_skills = github_data_normalized.get("languages", [])
+
 
         # Normalize extracted skills
         unified_skills = self.skill_normalizer.normalize(

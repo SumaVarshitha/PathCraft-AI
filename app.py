@@ -221,6 +221,23 @@ with tab_diag:
                     for ar in alt_roles:
                         st.info(f"🎯 **{ar.get('role')}** (Est. Match: `{ar.get('estimated_match')}`): {ar.get('rationale')}")
 
+        # GitHub Profile Card (shown when GitHub URL was provided)
+        gh_data = res.get("github_data")
+        if gh_data and (gh_data.get("languages") or gh_data.get("top_repositories")):
+            with st.expander(f"🐙 GitHub Profile: `{gh_data.get('username', '')}` — Verified Repos & Languages", expanded=True):
+                gh_langs = gh_data.get("languages", [])
+                if gh_langs:
+                    st.markdown("**Detected Languages across public repos:**")
+                    st.write("  ".join([f"`{l}`" for l in gh_langs]))
+                gh_repos = gh_data.get("top_repositories", [])
+                if gh_repos:
+                    st.markdown("**Top Public Repositories:**")
+                    for repo in gh_repos:
+                        lang_badge = f" · `{repo.get('language')}`" if repo.get("language") else ""
+                        stars = f" ⭐ {repo.get('stars', 0)}" if repo.get("stars", 0) > 0 else ""
+                        desc = f" — {repo.get('description', '')}" if repo.get("description") else ""
+                        st.markdown(f"• **{repo.get('name', '')}**{lang_badge}{stars}{desc}")
+
         # HITL Candidate Skill Editor
         with st.expander("👤 Human-in-the-Loop: Candidate Verified Skills Editor", expanded=not res.get("match_score")):
             st.markdown("Review the skills extracted from your resume, projects, and GitHub. You can add or remove skills to refine the analysis.")
