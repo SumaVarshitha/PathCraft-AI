@@ -1,10 +1,6 @@
 import os
 import io
 from typing import Dict, Any, List, Optional
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 from pydantic import BaseModel, Field
 import config
 from core.adk_agent import ADKAgent
@@ -98,16 +94,17 @@ class ResumeGeneratorADKAgent(ADKAgent):
 
 ## PROFESSIONAL EXPERIENCE
 ### Senior {target_role} — Enterprise Tech Solutions (2022 - Present)
-- Architected end-to-end {target_role} pipelines, reducing data latency by 42% across 50M+ daily records.
+- Architected end-to-end pipelines using {skills_list[0] if skills_list else 'Python'}, reducing latency by 42%.
 - Orchestrated cloud deployment workflows with Docker and CI/CD, achieving 99.95% system uptime.
+- Implemented automated data validation assertions, decreasing production regressions by 30%.
 
 ## FEATURED PROJECTS
-### Production {target_role} Showcase Platform
-- Designed and deployed high-throughput reference system utilizing {skills_str}.
+### Production {target_role} Platform
+- Designed and deployed high-throughput system utilizing {skills_str}.
 
 ## EDUCATION & CERTIFICATIONS
-- {edu[0] if edu else 'B.S. in Computer Science'}
-- {certs[0] if certs else 'Cloud Certified'}
+- {', '.join(edu)}
+- {', '.join(certs)}
 """
         return {
             "candidate_name": name,
@@ -115,8 +112,8 @@ class ResumeGeneratorADKAgent(ADKAgent):
             "contact_info": "candidate@example.com | San Francisco, CA | github.com/profile",
             "executive_summary": summary,
             "categorized_skills": {
-                "Core Technologies": skills_str,
-                "Cloud & DevOps": "Docker, Kubernetes, Git, CI/CD, Cloud Architecture"
+                "Languages & Core": ", ".join(all_skills[:4]),
+                "Frameworks & Cloud": ", ".join(all_skills[4:8]) if len(all_skills) > 4 else "Docker, Git"
             },
             "experience": experience,
             "projects": projects,
@@ -124,122 +121,154 @@ class ResumeGeneratorADKAgent(ADKAgent):
             "markdown_content": md
         }
 
-    def generate(self, resume_data: Dict[str, Any], target_role: str, missing_skills: List[str]) -> Dict[str, Any]:
-        """Generates tailored ATS-optimized resume."""
-        if not self.client:
-            return self._offline_tailored_resume(resume_data, target_role, missing_skills)
+    def generate(
+        self,
+        resume_data: Dict[str, Any],
+        target_role: str,
+        missing_skills: List[str]
+    ) -> Dict[str, Any]:
+        """Generates tailored resume structure using Gemini 2.5 Flash."""
+        gaps_str = ", ".join(missing_skills[:5]) if missing_skills else "Cloud Architecture & Scalability"
+        
+        prompt = f"""
+        Transform this candidate background into a top-tier tailored ATS-optimized resume for the target role: '{target_role}'.
+        
+        Candidate Current Profile:
+        {resume_data}
+        
+        Priority Target Keywords & Skills to Incorporate:
+        [{gaps_str}]
+        
+        Requirements:
+        1. Formulate an impactful executive summary explicitly highlighting candidate strengths and target role relevance.
+        2. Group skills into domains (e.g. 'Languages & Frameworks', 'Databases & Cloud', 'DevOps & Tooling').
+        3. Upgrade all work experience bullets to follow Google's XYZ formula: 'Accomplished [X] as measured by [Y], by doing [Z]'.
+        4. Populate markdown_content with complete clean Markdown.
+        """
 
-        try:
-            prompt = f"""
-            Target Career Job Title: '{target_role}'
-            Missing Target Skills to Incorporate: {missing_skills}
-            
-            Original Candidate Profile Data:
-            {resume_data}
-            
-            Synthesize a complete tailored, ATS-compliant resume in the TailoredResumeResult schema format.
-            """
-            return self.execute(prompt_input=prompt)
-        except Exception as e:
-            print(f"[Resume Generator Notice]: ({e}). Using fallback tailored resume.", flush=True)
-            return self._offline_tailored_resume(resume_data, target_role, missing_skills)
+        if self.client:
+            try:
+                return self.execute(prompt_input=prompt)
+            except Exception as e:
+                print(f"[ResumeGeneratorADKAgent Notice]: ({e}). Using heuristic generator.", flush=True)
+
+        return self._offline_tailored_resume(resume_data, target_role, missing_skills)
 
 def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
-    """Generates clean ATS-compliant PDF bytes from tailored resume data using ReportLab."""
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
-    styles = getSampleStyleSheet()
-    
-    header_style = ParagraphStyle(
-        'HeaderStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=18,
-        leading=22,
-        textColor=colors.HexColor('#0F172A'),
-        alignment=0
-    )
-    
-    sub_style = ParagraphStyle(
-        'SubStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=10,
-        leading=14,
-        textColor=colors.HexColor('#475569')
-    )
-    
-    section_style = ParagraphStyle(
-        'SectionStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=12,
-        leading=16,
-        textColor=colors.HexColor('#0F172A'),
-        spaceBefore=8,
-        spaceAfter=4
-    )
-    
-    body_style = ParagraphStyle(
-        'BodyStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=9.5,
-        leading=13,
-        textColor=colors.HexColor('#1E293B')
-    )
-    
-    bold_body = ParagraphStyle(
-        'BoldBody',
-        parent=body_style,
-        fontName='Helvetica-Bold'
-    )
+    """Generates a clean, ATS-compliant PDF document from tailored resume data."""
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
 
-    story = []
-    
-    name = tailored_data.get("candidate_name", "Candidate")
-    title = tailored_data.get("target_job_title", "Software Engineer")
-    contact = tailored_data.get("contact_info", "candidate@example.com | Location")
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=36,
+            leftMargin=36,
+            topMargin=36,
+            bottomMargin=36
+        )
 
-    # Header
-    story.append(Paragraph(f"<b>{name}</b>", header_style))
-    story.append(Paragraph(f"<b>{title}</b> | {contact}", sub_style))
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#CBD5E1'), spaceBefore=2, spaceAfter=6))
-    
-    # Summary
-    story.append(Paragraph("PROFESSIONAL SUMMARY", section_style))
-    story.append(Paragraph(tailored_data.get("executive_summary", ""), body_style))
-    story.append(Spacer(1, 4))
-    
-    # Skills
-    story.append(Paragraph("TECHNICAL SKILLS & COMPETENCIES", section_style))
-    cat_skills = tailored_data.get("categorized_skills", {})
-    if isinstance(cat_skills, dict):
-        for cat, s_list in cat_skills.items():
-            story.append(Paragraph(f"<b>{cat}:</b> {s_list}", body_style))
-    story.append(Spacer(1, 4))
-    
-    # Experience
-    story.append(Paragraph("PROFESSIONAL EXPERIENCE", section_style))
-    for exp in tailored_data.get("experience", []):
-        if isinstance(exp, dict):
-            story.append(Paragraph(f"<b>{exp.get('role', '')}</b> — <i>{exp.get('company', '')}</i> ({exp.get('period', '')})", bold_body))
-            for bullet in exp.get("bullets", []):
-                story.append(Paragraph(f"• {bullet}", body_style))
-            story.append(Spacer(1, 3))
+        styles = getSampleStyleSheet()
         
-    # Projects
-    story.append(Paragraph("FEATURED PROJECTS", section_style))
-    for proj in tailored_data.get("projects", []):
-        if isinstance(proj, dict):
-            story.append(Paragraph(f"<b>{proj.get('name', '')}</b> | <i>Tech: {proj.get('tech_stack', '')}</i>", bold_body))
-            story.append(Paragraph(f"• {proj.get('description', '')}", body_style))
-            story.append(Spacer(1, 3))
+        header_style = ParagraphStyle(
+            'HeaderStyle',
+            parent=styles['Heading1'],
+            fontName='Helvetica-Bold',
+            fontSize=18,
+            leading=22,
+            textColor=colors.HexColor('#1E293B'),
+            spaceAfter=2,
+            alignment=0
+        )
         
-    # Education
-    story.append(Paragraph("EDUCATION & CERTIFICATIONS", section_style))
-    for edu in tailored_data.get("education_certifications", []):
-        story.append(Paragraph(f"• {edu}", body_style))
+        sub_style = ParagraphStyle(
+            'SubStyle',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor('#475569')
+        )
         
-    doc.build(story)
-    return buffer.getvalue()
+        section_style = ParagraphStyle(
+            'SectionStyle',
+            parent=styles['Normal'],
+            fontName='Helvetica-Bold',
+            fontSize=12,
+            leading=16,
+            textColor=colors.HexColor('#0F172A'),
+            spaceBefore=8,
+            spaceAfter=4
+        )
+        
+        body_style = ParagraphStyle(
+            'BodyStyle',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=9.5,
+            leading=13,
+            textColor=colors.HexColor('#1E293B')
+        )
+        
+        bold_body = ParagraphStyle(
+            'BoldBody',
+            parent=body_style,
+            fontName='Helvetica-Bold'
+        )
+
+        story = []
+        
+        name = tailored_data.get("candidate_name", "Candidate")
+        title = tailored_data.get("target_job_title", "Software Engineer")
+        contact = tailored_data.get("contact_info", "candidate@example.com | Location")
+
+        # Header
+        story.append(Paragraph(f"<b>{name}</b>", header_style))
+        story.append(Paragraph(f"<b>{title}</b> | {contact}", sub_style))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#CBD5E1'), spaceBefore=2, spaceAfter=6))
+        
+        # Summary
+        story.append(Paragraph("PROFESSIONAL SUMMARY", section_style))
+        story.append(Paragraph(tailored_data.get("executive_summary", ""), body_style))
+        story.append(Spacer(1, 4))
+        
+        # Skills
+        story.append(Paragraph("TECHNICAL SKILLS & COMPETENCIES", section_style))
+        cat_skills = tailored_data.get("categorized_skills", {})
+        if isinstance(cat_skills, dict):
+            for cat, s_list in cat_skills.items():
+                story.append(Paragraph(f"<b>{cat}:</b> {s_list}", body_style))
+        story.append(Spacer(1, 4))
+        
+        # Experience
+        story.append(Paragraph("PROFESSIONAL EXPERIENCE", section_style))
+        for exp in tailored_data.get("experience", []):
+            if isinstance(exp, dict):
+                story.append(Paragraph(f"<b>{exp.get('role', '')}</b> — <i>{exp.get('company', '')}</i> ({exp.get('period', '')})", bold_body))
+                for bullet in exp.get("bullets", []):
+                    story.append(Paragraph(f"• {bullet}", body_style))
+                story.append(Spacer(1, 3))
+            
+        # Projects
+        story.append(Paragraph("FEATURED PROJECTS", section_style))
+        for proj in tailored_data.get("projects", []):
+            if isinstance(proj, dict):
+                story.append(Paragraph(f"<b>{proj.get('name', '')}</b> | <i>Tech: {proj.get('tech_stack', '')}</i>", bold_body))
+                story.append(Paragraph(f"• {proj.get('description', '')}", body_style))
+                story.append(Spacer(1, 3))
+            
+        # Education
+        story.append(Paragraph("EDUCATION & CERTIFICATIONS", section_style))
+        for edu in tailored_data.get("education_certifications", []):
+            story.append(Paragraph(f"• {edu}", body_style))
+            
+        doc.build(story)
+        return buffer.getvalue()
+    except Exception as e:
+        print(f"[PDF Generation Notice]: {e}. Returning markdown text buffer.", flush=True)
+        md_text = tailored_data.get("markdown_content", "# Resume")
+        return md_text.encode("utf-8")
