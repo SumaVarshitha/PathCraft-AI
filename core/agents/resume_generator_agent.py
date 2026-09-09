@@ -147,12 +147,16 @@ def _md_to_rl(text: str) -> str:
 
 def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
     """
-    Generates a properly formatted, styled PDF from optimized markdown resume text.
-    Correctly renders headings, bold, italic, bullets and section dividers.
+    Generates an executive-standard, beautifully styled PDF matching top corporate ATS templates:
+    - Clean typography hierarchy (Navy headings, slate subheaders, dark charcoal body)
+    - Full-width subtle section divider rules
+    - Formatted contact information bar
+    - Properly indented and bulleted achievement statements
+    - Compatible with automated ATS parsing engines (Workday, Greenhouse, Lever, Taleo)
     """
     try:
         from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
 
@@ -160,92 +164,123 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
         doc = SimpleDocTemplate(
             buffer,
             pagesize=letter,
-            rightMargin=42,
-            leftMargin=42,
-            topMargin=36,
-            bottomMargin=36
+            rightMargin=36,
+            leftMargin=36,
+            topMargin=32,
+            bottomMargin=32
         )
 
         styles = getSampleStyleSheet()
 
         name_style = ParagraphStyle(
-            'NameStyle', parent=styles['Heading1'],
+            'ExecutiveName', parent=styles['Heading1'],
             fontName='Helvetica-Bold', fontSize=18, leading=22,
-            textColor=colors.HexColor('#0F172A'), spaceAfter=2, spaceBefore=0
+            textColor=colors.HexColor('#0F172A'), spaceAfter=2, spaceBefore=0,
+            alignment=0  # Left aligned
+        )
+        contact_style = ParagraphStyle(
+            'ContactBar', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=8.5, leading=12,
+            textColor=colors.HexColor('#475569'), spaceAfter=6
         )
         section_style = ParagraphStyle(
-            'SectionStyle', parent=styles['Heading2'],
+            'SectionHeader', parent=styles['Heading2'],
             fontName='Helvetica-Bold', fontSize=11, leading=14,
-            textColor=colors.HexColor('#1E3A5F'), spaceBefore=10, spaceAfter=2
+            textColor=colors.HexColor('#1E3A8A'), spaceBefore=8, spaceAfter=2
         )
-        role_style = ParagraphStyle(
-            'RoleStyle', parent=styles['Normal'],
+        role_company_style = ParagraphStyle(
+            'RoleCompany', parent=styles['Normal'],
             fontName='Helvetica-Bold', fontSize=10, leading=13,
-            textColor=colors.HexColor('#1E293B'), spaceAfter=1
+            textColor=colors.HexColor('#0F172A'), spaceBefore=4, spaceAfter=1
         )
-        company_style = ParagraphStyle(
-            'CompanyStyle', parent=styles['Normal'],
-            fontName='Helvetica-Oblique', fontSize=9.5, leading=12,
-            textColor=colors.HexColor('#475569'), spaceAfter=2
+        duration_style = ParagraphStyle(
+            'DurationStyle', parent=styles['Normal'],
+            fontName='Helvetica-Oblique', fontSize=9, leading=12,
+            textColor=colors.HexColor('#64748B'), spaceAfter=2
         )
         bullet_style = ParagraphStyle(
-            'BulletStyle', parent=styles['Normal'],
-            fontName='Helvetica', fontSize=9.5, leading=13,
-            textColor=colors.HexColor('#334155'), leftIndent=12, spaceAfter=1
+            'ExecutiveBullet', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=9, leading=13,
+            textColor=colors.HexColor('#1E293B'), leftIndent=12, spaceAfter=2
         )
         body_style = ParagraphStyle(
-            'BodyStyle', parent=styles['Normal'],
-            fontName='Helvetica', fontSize=9.5, leading=13,
-            textColor=colors.HexColor('#334155'), spaceAfter=2
+            'ExecutiveBody', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=9, leading=13,
+            textColor=colors.HexColor('#1E293B'), spaceAfter=2
         )
 
         story = []
         text_content = tailored_data.get("optimized_text") or tailored_data.get("markdown_content") or ""
-        is_first_h1 = True
+        lines = [l.strip() for l in text_content.split("\n") if l.strip()]
 
-        for raw_line in text_content.split("\n"):
+        if not lines:
+            story.append(Paragraph("Empty Resume Content", body_style))
+            doc.build(story)
+            return buffer.getvalue()
+
+        # Check for Candidate Name in line 0 or # header
+        first_line = lines[0]
+        if first_line.startswith("# "):
+            cand_name = first_line[2:].strip()
+            lines = lines[1:]
+        elif not any(c in first_line for c in ["@", "http", "|", "+"]):
+            cand_name = first_line
+            lines = lines[1:]
+        else:
+            cand_name = tailored_data.get("candidate_name", "Candidate")
+
+        # Add Name Banner
+        story.append(Paragraph(cand_name.upper(), name_style))
+
+        # Check if next line is Contact Info (contains @ or | or http)
+        if lines and any(c in lines[0] for c in ["@", "http", "|", "+91", ".com"]):
+            contact_line = lines[0]
+            story.append(Paragraph(_md_to_rl(contact_line), contact_style))
+            lines = lines[1:]
+
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1E3A8A'), spaceAfter=6))
+
+        for raw_line in lines:
             stripped = raw_line.strip()
-
             if not stripped:
-                story.append(Spacer(1, 4))
+                story.append(Spacer(1, 3))
                 continue
 
-            if stripped.startswith("# "):
-                content = _md_to_rl(stripped[2:].strip())
-                if is_first_h1:
-                    story.append(Paragraph(content, name_style))
-                    is_first_h1 = False
-                else:
-                    story.append(Spacer(1, 4))
-                    story.append(Paragraph(content, section_style))
-                    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1')))
-
-            elif stripped.startswith("## "):
-                content = _md_to_rl(stripped[3:].strip())
+            # Markdown H1 / H2 or All-caps section headers (e.g., EXPERIENCE, PROJECTS, EDUCATION, SKILLS)
+            if stripped.startswith("## ") or stripped.startswith("# ") or (stripped.isupper() and len(stripped) < 35 and not any(c in stripped for c in ["|", "–", "-"])):
+                header_text = stripped.replace("## ", "").replace("# ", "").strip()
                 story.append(Spacer(1, 4))
-                story.append(Paragraph(content.upper(), section_style))
-                story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1')))
+                story.append(Paragraph(header_text.upper(), section_style))
+                story.append(HRFlowable(width="100%", thickness=0.6, color=colors.HexColor('#CBD5E1'), spaceAfter=3))
 
+            # Job Header with Pipe (e.g. Senior DevOps & AI Engineer | SAP Labs India | Sep 2023 – Present)
+            elif "|" in stripped and ("present" in stripped.lower() or any(yr in stripped for yr in ["2020", "2021", "2022", "2023", "2024", "2025", "2026"])):
+                parts = [p.strip() for p in stripped.split("|")]
+                if len(parts) >= 2:
+                    title_comp = f"<b>{parts[0]}</b> &nbsp;|&nbsp; <i>{parts[1]}</i>"
+                    story.append(Paragraph(title_comp, role_company_style))
+                    if len(parts) >= 3:
+                        story.append(Paragraph(parts[2], duration_style))
+                else:
+                    story.append(Paragraph(_md_to_rl(stripped), role_company_style))
+
+            # Markdown H3 / H4
             elif stripped.startswith("### "):
                 content = _md_to_rl(stripped[4:].strip())
-                story.append(Paragraph(content, role_style))
+                story.append(Paragraph(content, role_company_style))
 
             elif stripped.startswith("#### "):
                 content = _md_to_rl(stripped[5:].strip())
-                story.append(Paragraph(content, company_style))
+                story.append(Paragraph(content, duration_style))
 
+            # Bullet Points
             elif stripped.startswith(("- ", "• ", "* ")):
                 bullet_text = _md_to_rl(stripped[2:].strip())
                 story.append(Paragraph(f"• {bullet_text}", bullet_style))
 
+            # Horizontal line
             elif stripped in ("---", "***", "___"):
-                story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1')))
-
-            elif stripped.isupper() and len(stripped) < 40:
-                # All-caps lines → section headers (common in plain-text resumes)
-                story.append(Spacer(1, 4))
-                story.append(Paragraph(stripped, section_style))
-                story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1')))
+                story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1'), spaceAfter=2))
 
             else:
                 story.append(Paragraph(_md_to_rl(stripped), body_style))
@@ -254,6 +289,6 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
         return buffer.getvalue()
 
     except Exception as e:
-        print(f"[PDF Generation Fallback]: {e}", flush=True)
+        print(f"[PDF Generation Notice]: {e}", flush=True)
         text_out = tailored_data.get("optimized_text", "")
         return text_out.encode("utf-8")

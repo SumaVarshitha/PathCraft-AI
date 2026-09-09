@@ -206,22 +206,23 @@ res = st.session_state["adk_result"]
 with tab_diag:
     st.subheader("📊 Dynamic Semantic Skill Gap Diagnostic")
     if res:
-        # Key Differentiators Card (replaces "Superpowers")
+        # Key Differentiators Card
         differentiators = res.get("candidate_superpowers", [])
         if differentiators:
             with st.container(border=True):
-                st.markdown("#### Key Differentiators & Advanced Competencies")
+                st.markdown("#### 🌟 Key Differentiators & Advanced Competencies")
                 st.caption("High-value skills detected across your work history, projects, and certifications that set you apart from baseline candidates:")
-                # Display as styled tags
                 tags_html = "  ".join([f"`{sp}`" for sp in differentiators])
                 st.write(tags_html)
 
-                alt_roles = res.get("suggested_alternate_roles", [])
-                if alt_roles:
-                    st.divider()
-                    st.markdown("**Recommended Roles Based on Your Profile:**")
-                    for ar in alt_roles:
-                        st.info(f"**{ar.get('role')}** &nbsp;·&nbsp; Est. Match: `{ar.get('estimated_match')}` — {ar.get('rationale')}")
+        # High-Synergy Alternate Role Suggestions (Always shown if available)
+        alt_roles = res.get("suggested_alternate_roles", [])
+        if alt_roles:
+            with st.container(border=True):
+                st.markdown("#### 💡 High-Synergy Alternate Roles For Your Background")
+                st.caption("Based on your verified skills and project evidence, you are also highly competitive for these alternative career paths:")
+                for ar in alt_roles:
+                    st.info(f"🎯 **{ar.get('role')}** &nbsp;·&nbsp; **Est. Match: `{ar.get('estimated_match')}`**\n\n{ar.get('rationale')}")
 
         # GitHub Profile Card
         gh_data = res.get("github_data")
@@ -401,6 +402,7 @@ with tab_resume:
 
         # Build highlighted HTML for optimized side
         import difflib
+        import html
         diff_matcher = difflib.SequenceMatcher(None, orig_lines, opt_lines)
 
         highlighted_orig = []
@@ -408,19 +410,21 @@ with tab_resume:
 
         for tag, i1, i2, j1, j2 in diff_matcher.get_opcodes():
             for line in orig_lines[i1:i2]:
+                safe_line = html.escape(line) if line else "&nbsp;"
                 if tag == "replace":
-                    highlighted_orig.append(f'<span style="background:#fee2e2;display:block;padding:1px 4px;">{line}</span>')
+                    highlighted_orig.append(f'<div style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-left:3px solid #ef4444;margin:1px 0;white-space:pre-wrap;word-break:break-word;">{safe_line}</div>')
                 elif tag == "delete":
-                    highlighted_orig.append(f'<span style="background:#fee2e2;display:block;padding:1px 4px;text-decoration:line-through;">{line}</span>')
+                    highlighted_orig.append(f'<div style="background:#fee2e2;color:#991b1b;text-decoration:line-through;padding:2px 8px;border-left:3px solid #ef4444;margin:1px 0;white-space:pre-wrap;word-break:break-word;">{safe_line}</div>')
                 else:
-                    highlighted_orig.append(f'<span style="display:block;padding:1px 4px;">{line}</span>')
+                    highlighted_orig.append(f'<div style="color:#0f172a;padding:2px 8px;margin:1px 0;white-space:pre-wrap;word-break:break-word;">{safe_line}</div>')
             for line in opt_lines[j1:j2]:
+                safe_line = html.escape(line) if line else "&nbsp;"
                 if tag in ("replace", "insert"):
-                    highlighted_opt.append(f'<span style="background:#dcfce7;display:block;padding:1px 4px;">{line}</span>')
+                    highlighted_opt.append(f'<div style="background:#dcfce7;color:#166534;font-weight:500;padding:2px 8px;border-left:3px solid #22c55e;margin:1px 0;white-space:pre-wrap;word-break:break-word;">{safe_line}</div>')
                 else:
-                    highlighted_opt.append(f'<span style="display:block;padding:1px 4px;">{line}</span>')
+                    highlighted_opt.append(f'<div style="color:#0f172a;padding:2px 8px;margin:1px 0;white-space:pre-wrap;word-break:break-word;">{safe_line}</div>')
 
-        diff_css = "font-family:monospace;font-size:12px;line-height:1.5;overflow-y:auto;max-height:420px;border:1px solid #e2e8f0;border-radius:6px;padding:8px;background:#f8fafc;"
+        diff_css = "font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12.5px;line-height:1.55;overflow-y:auto;max-height:450px;border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#ffffff;color:#0f172a !important;"
 
         with col_orig:
             st.markdown("**Original Resume**")
@@ -428,9 +432,9 @@ with tab_resume:
             st.markdown(f'<div style="{diff_css}">{orig_html}</div>', unsafe_allow_html=True)
 
         with col_opt:
-            st.markdown("**Optimized Resume** *(green = changed lines)*")
+            st.markdown("**Optimized Resume** *(🟢 green = enhanced lines)*")
             if use_original:
-                plain_html = "".join([f'<span style="display:block;padding:1px 4px;">{l}</span>' for l in orig_lines])
+                plain_html = "".join([f'<div style="color:#0f172a;padding:2px 8px;margin:1px 0;white-space:pre-wrap;word-break:break-word;">{html.escape(l) if l else "&nbsp;"}</div>' for l in orig_lines])
                 st.markdown(f'<div style="{diff_css}">{plain_html}</div>', unsafe_allow_html=True)
             else:
                 opt_html = "".join(highlighted_opt)
@@ -533,6 +537,19 @@ with tab_roadmap:
         st.divider()
         st.subheader("📚 Curated Learning Pack & GitHub Reference Repositories")
         resources = res.get("learning_resources", {})
+
+        # Free Video Courses & YouTube Crash Courses
+        courses = resources.get("courses", []) or res.get("curated_courses", [])
+        if courses:
+            st.markdown("#### 📺 Free Video Courses & YouTube Masterclasses")
+            c_cols = st.columns(min(len(courses), 2))
+            for i, c in enumerate(courses):
+                with c_cols[i % len(c_cols)]:
+                    with st.container(border=True):
+                        st.markdown(f"**{c.get('title')}**")
+                        st.caption(f"🎯 **Skill**: `{c.get('skill')}` &nbsp;·&nbsp; 🏢 **Platform**: {c.get('platform', 'YouTube')} &nbsp;·&nbsp; ⏱️ **Duration**: {c.get('duration', '3-5 Hours')}")
+                        course_url = c.get("url") or f"https://www.youtube.com/results?search_query={c.get('skill', '').replace(' ', '+')}+full+course"
+                        st.link_button("▶️ Watch Free Course on YouTube", course_url, type="secondary")
 
         # Technical Books
         books = resources.get("books", [])
