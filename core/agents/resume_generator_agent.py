@@ -1,5 +1,6 @@
 import os
 import io
+import re as _re
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 import config
@@ -16,8 +17,9 @@ class InPlaceResumeOptimizationResult(BaseModel):
     original_text: str = Field(description="Exact original resume text")
     optimized_text: str = Field(description="Full optimized resume preserving 100% of authentic companies and dates with upgraded bullets and natural keywords")
     key_changes: List[BulletDiff] = Field(description="List of specific in-place surgical improvements made")
-    ats_score_before: int = Field(default=68, description="Estimated ATS score before optimization (0-100)")
-    ats_score_after: int = Field(default=92, description="Estimated ATS score after optimization (0-100)")
+    ats_score_before: int = Field(default=0, description="Estimated ATS score before optimization (0-100). Use the actual score from the ATS audit.")
+    ats_score_after: int = Field(default=0, description="Estimated ATS score after optimization (0-100). Compute realistically — do not assume 92.")
+
 
 class ResumeGeneratorADKAgent(ADKAgent):
     """
@@ -131,11 +133,26 @@ class ResumeGeneratorADKAgent(ADKAgent):
             "ats_score_after": 92
         }
 
+
+def _md_to_rl(text: str) -> str:
+    """Convert markdown bold/italic/code to ReportLab XML tags, escaping XML first."""
+    text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    text = _re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = _re.sub(r'__(.+?)__', r'<b>\1</b>', text)
+    text = _re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+    text = _re.sub(r'_([^_]+?)_', r'<i>\1</i>', text)
+    text = _re.sub(r'`(.+?)`', r'<font face="Courier">\1</font>', text)
+    return text
+
+
 def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
-    """Generates a clean PDF document from optimized resume text."""
+    """
+    Generates a properly formatted, styled PDF from optimized markdown resume text.
+    Correctly renders headings, bold, italic, bullets and section dividers.
+    """
     try:
         from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
 
@@ -143,68 +160,99 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
         doc = SimpleDocTemplate(
             buffer,
             pagesize=letter,
-            rightMargin=36,
-            leftMargin=36,
+            rightMargin=42,
+            leftMargin=42,
             topMargin=36,
             bottomMargin=36
         )
 
         styles = getSampleStyleSheet()
-        
-        header_style = ParagraphStyle(
-            'HeaderStyle',
-            parent=styles['Heading1'],
-            fontName='Helvetica-Bold',
-            fontSize=16,
-            leading=20,
-            textColor=colors.HexColor('#0F172A'),
-            spaceAfter=4
+
+        name_style = ParagraphStyle(
+            'NameStyle', parent=styles['Heading1'],
+            fontName='Helvetica-Bold', fontSize=18, leading=22,
+            textColor=colors.HexColor('#0F172A'), spaceAfter=2, spaceBefore=0
         )
-        
         section_style = ParagraphStyle(
-            'SectionStyle',
-            parent=styles['Heading2'],
-            fontName='Helvetica-Bold',
-            fontSize=12,
-            leading=16,
-            textColor=colors.HexColor('#1E293B'),
-            spaceBefore=8,
-            spaceAfter=3
+            'SectionStyle', parent=styles['Heading2'],
+            fontName='Helvetica-Bold', fontSize=11, leading=14,
+            textColor=colors.HexColor('#1E3A5F'), spaceBefore=10, spaceAfter=2
         )
-        
+        role_style = ParagraphStyle(
+            'RoleStyle', parent=styles['Normal'],
+            fontName='Helvetica-Bold', fontSize=10, leading=13,
+            textColor=colors.HexColor('#1E293B'), spaceAfter=1
+        )
+        company_style = ParagraphStyle(
+            'CompanyStyle', parent=styles['Normal'],
+            fontName='Helvetica-Oblique', fontSize=9.5, leading=12,
+            textColor=colors.HexColor('#475569'), spaceAfter=2
+        )
+        bullet_style = ParagraphStyle(
+            'BulletStyle', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=9.5, leading=13,
+            textColor=colors.HexColor('#334155'), leftIndent=12, spaceAfter=1
+        )
         body_style = ParagraphStyle(
-            'BodyStyle',
-            parent=styles['Normal'],
-            fontName='Helvetica',
-            fontSize=9.5,
-            leading=13,
-            textColor=colors.HexColor('#334155'),
-            spaceAfter=2
+            'BodyStyle', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=9.5, leading=13,
+            textColor=colors.HexColor('#334155'), spaceAfter=2
         )
 
         story = []
         text_content = tailored_data.get("optimized_text") or tailored_data.get("markdown_content") or ""
-        
-        lines = text_content.split("\n")
-        for line in lines:
-            line_str = line.strip()
-            if not line_str:
-                story.append(Spacer(1, 3))
-            elif line_str.startswith("# "):
-                story.append(Paragraph(f"<b>{line_str[2:]}</b>", header_style))
-            elif line_str.startswith("## "):
-                story.append(Paragraph(f"<b>{line_str[3:]}</b>", section_style))
-            elif line_str.startswith("### "):
-                story.append(Paragraph(f"<b>{line_str[4:]}</b>", section_style))
-            elif line_str.startswith("- ") or line_str.startswith("• ") or line_str.startswith("* "):
-                clean_bullet = line_str[2:].replace("<", "&lt;").replace(">", "&gt;")
-                story.append(Paragraph(f"• {clean_bullet}", body_style))
+        is_first_h1 = True
+
+        for raw_line in text_content.split("\n"):
+            stripped = raw_line.strip()
+
+            if not stripped:
+                story.append(Spacer(1, 4))
+                continue
+
+            if stripped.startswith("# "):
+                content = _md_to_rl(stripped[2:].strip())
+                if is_first_h1:
+                    story.append(Paragraph(content, name_style))
+                    is_first_h1 = False
+                else:
+                    story.append(Spacer(1, 4))
+                    story.append(Paragraph(content, section_style))
+                    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1')))
+
+            elif stripped.startswith("## "):
+                content = _md_to_rl(stripped[3:].strip())
+                story.append(Spacer(1, 4))
+                story.append(Paragraph(content.upper(), section_style))
+                story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1')))
+
+            elif stripped.startswith("### "):
+                content = _md_to_rl(stripped[4:].strip())
+                story.append(Paragraph(content, role_style))
+
+            elif stripped.startswith("#### "):
+                content = _md_to_rl(stripped[5:].strip())
+                story.append(Paragraph(content, company_style))
+
+            elif stripped.startswith(("- ", "• ", "* ")):
+                bullet_text = _md_to_rl(stripped[2:].strip())
+                story.append(Paragraph(f"• {bullet_text}", bullet_style))
+
+            elif stripped in ("---", "***", "___"):
+                story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1')))
+
+            elif stripped.isupper() and len(stripped) < 40:
+                # All-caps lines → section headers (common in plain-text resumes)
+                story.append(Spacer(1, 4))
+                story.append(Paragraph(stripped, section_style))
+                story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1')))
+
             else:
-                clean_text = line_str.replace("<", "&lt;").replace(">", "&gt;")
-                story.append(Paragraph(clean_text, body_style))
+                story.append(Paragraph(_md_to_rl(stripped), body_style))
 
         doc.build(story)
         return buffer.getvalue()
+
     except Exception as e:
         print(f"[PDF Generation Fallback]: {e}", flush=True)
         text_out = tailored_data.get("optimized_text", "")

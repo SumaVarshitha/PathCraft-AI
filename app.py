@@ -192,42 +192,44 @@ st.divider()
 # FOCUSED 4-HUB INTERACTIVE WORKSPACE
 # -------------------------------------------------------------------
 tab_diag, tab_resume, tab_roadmap, tab_interview = st.tabs([
-    "📊 1. Skill Gap Diagnostic & Superpowers",
-    "✍️ 2. In-Place Resume Optimizer",
-    "📅 3. Dynamic Roadmap & Learning Pack",
-    "🎙️ 4. AI Mock Interview Hub"
+    "📊 1. Skill Gap Diagnostic",
+    "✍️ 2. Resume Optimizer",
+    "📅 3. Roadmap & Learning",
+    "🎙️ 4. Mock Interview"
 ])
 
 res = st.session_state["adk_result"]
 
 # -------------------------------------------------------------------
-# HUB 1: DIAGNOSTIC, SUPERPOWERS & HITL SKILL VERIFICATION
+# HUB 1: SKILL GAP DIAGNOSTIC & CANDIDATE DIFFERENTIATORS
 # -------------------------------------------------------------------
 with tab_diag:
-    st.subheader("📊 Dynamic Semantic Skill Gap Diagnostic & Candidate Superpowers")
+    st.subheader("📊 Dynamic Semantic Skill Gap Diagnostic")
     if res:
-        # Superpowers Banner
-        superpowers = res.get("candidate_superpowers", [])
-        if superpowers:
+        # Key Differentiators Card (replaces "Superpowers")
+        differentiators = res.get("candidate_superpowers", [])
+        if differentiators:
             with st.container(border=True):
-                st.markdown("### 🌟 Candidate Superpowers & Standout Capabilities")
-                st.caption("Advanced competencies detected in your projects and work experience that exceed standard baseline requirements:")
-                st.write(" ".join([f"✨ **`{sp}`**" for sp in superpowers]))
-                
+                st.markdown("#### Key Differentiators & Advanced Competencies")
+                st.caption("High-value skills detected across your work history, projects, and certifications that set you apart from baseline candidates:")
+                # Display as styled tags
+                tags_html = "  ".join([f"`{sp}`" for sp in differentiators])
+                st.write(tags_html)
+
                 alt_roles = res.get("suggested_alternate_roles", [])
                 if alt_roles:
                     st.divider()
-                    st.markdown("##### 💡 High-Synergy Alternate Roles For Your Background:")
+                    st.markdown("**Recommended Roles Based on Your Profile:**")
                     for ar in alt_roles:
-                        st.info(f"🎯 **{ar.get('role')}** (Est. Match: `{ar.get('estimated_match')}`): {ar.get('rationale')}")
+                        st.info(f"**{ar.get('role')}** &nbsp;·&nbsp; Est. Match: `{ar.get('estimated_match')}` — {ar.get('rationale')}")
 
-        # GitHub Profile Card (shown when GitHub URL was provided)
+        # GitHub Profile Card
         gh_data = res.get("github_data")
         if gh_data and (gh_data.get("languages") or gh_data.get("top_repositories")):
             with st.expander(f"🐙 GitHub Profile: `{gh_data.get('username', '')}` — Verified Repos & Languages", expanded=True):
                 gh_langs = gh_data.get("languages", [])
                 if gh_langs:
-                    st.markdown("**Detected Languages across public repos:**")
+                    st.markdown("**Languages detected across public repos:**")
                     st.write("  ".join([f"`{l}`" for l in gh_langs]))
                 gh_repos = gh_data.get("top_repositories", [])
                 if gh_repos:
@@ -238,39 +240,14 @@ with tab_diag:
                         desc = f" — {repo.get('description', '')}" if repo.get("description") else ""
                         st.markdown(f"• **{repo.get('name', '')}**{lang_badge}{stars}{desc}")
 
-        # HITL Candidate Skill Editor
-        with st.expander("👤 Human-in-the-Loop: Candidate Verified Skills Editor", expanded=not res.get("match_score")):
-            st.markdown("Review the skills extracted from your resume, projects, and GitHub. You can add or remove skills to refine the analysis.")
-            current_skills = res.get("user_confirmed_skills") or res.get("unified_skills", [])
-            
-            col_add, col_sel = st.columns([1, 2])
-            with col_add:
-                new_skill = st.text_input("Add Unlisted Skill", placeholder="e.g. LangGraph, RAG, FastAPI, dbt")
-                if st.button("➕ Add Skill"):
-                    if new_skill and new_skill.strip() not in current_skills:
-                        current_skills.append(new_skill.strip())
-                        res["user_confirmed_skills"] = current_skills
-                        st.rerun()
-
-            with col_sel:
-                confirmed = st.multiselect("Verified Skills List", options=current_skills, default=current_skills)
-                if confirmed != current_skills:
-                    res["user_confirmed_skills"] = confirmed
-
-            if st.button("🔄 Recalculate 2-Tier Skill Gap Diagnostic", type="primary"):
-                with st.spinner("Re-analyzing with updated skills against live 2026 market standards..."):
-                    res = st.session_state["adk_team"].run_full_pipeline(res)
-                    st.session_state["adk_result"] = res
-                    st.rerun()
-
         if res.get("match_score") is not None and res.get("match_score") > 0:
-            st.info(f"⚙️ **Market Data Source**: `{res.get('analysis_method', 'Live 2026 Market Search Grounding')}`")
-            
+            st.info(f"**Market Data Source**: `{res.get('analysis_method', 'Live 2026 Market Search Grounding')}`")
+
             m_col1, m_col2, m_col3 = st.columns(3)
             with m_col1:
                 st.metric("Overall Weighted Match", f"{res.get('match_score', 0.0)}%", help="Weighted: 70% Core Must-Haves + 30% Differentiators")
             with m_col2:
-                st.metric("Core Must-Haves Match", f"{res.get('core_match_score', 0.0)}%", help="Foundational non-negotiable requirements")
+                st.metric("Core Skills Match", f"{res.get('core_match_score', 0.0)}%", help="Foundational non-negotiable requirements")
             with m_col3:
                 total_reqs = len(res.get("semantic_matches", []))
                 verified_cnt = len(res.get("verified_skills", []))
@@ -279,114 +256,226 @@ with tab_diag:
             st.divider()
             col_v, col_m = st.columns(2)
             with col_v:
-                st.success("##### ✅ Verified Candidate Skills")
+                st.success("##### Verified Skills")
                 verified = res.get("verified_skills", [])
                 if verified:
                     st.write(", ".join([f"`{s}`" for s in verified]))
                 else:
                     st.write("No matching skills identified for this role.")
-                    
+
             with col_m:
-                st.error("##### ⚠️ Skill Gaps (To Master for Target Role)")
+                st.error("##### Skill Gaps — Priority Areas to Develop")
                 gaps = res.get("skills_gap", [])
                 if gaps:
                     st.write(", ".join([f"`{s}`" for s in gaps]))
                 else:
-                    st.write("🎉 Outstanding! No critical skill gaps detected for this role.")
+                    st.write("No critical skill gaps detected for this role.")
 
-            # Granular Semantic Match Breakdown Table
+            # Semantic Match Breakdown Table
             sem_matches = res.get("semantic_matches", [])
             if sem_matches:
-                st.markdown("##### 🔬 Meaning-Based Semantic Matching Breakdown")
+                st.markdown("##### Semantic Matching Breakdown — Evidence-Backed Analysis")
+                st.caption("Skills are matched against your work bullets, project descriptions, certifications, tools, and GitHub repos — not just your skills list.")
                 table_data = []
                 for item in sem_matches:
                     table_data.append({
                         "Required Skill": item.get("required_skill"),
                         "Tier": item.get("skill_category", "Core Must-Have"),
-                        "Matched Candidate Evidence": item.get("matched_candidate_skill") or "None Found",
-                        "Evidence Source": item.get("evidence_source", "None"),
-                        "Cosine Similarity": f"{item.get('similarity_score', 0.0):.2f}",
-                        "Status": "✅ MATCH" if item.get("is_match") else "❌ GAP"
+                        "Matched Evidence": item.get("matched_candidate_skill") or "—",
+                        "Source": item.get("evidence_source", "—"),
+                        "Score": f"{item.get('similarity_score', 0.0):.2f}",
+                        "Status": "MATCH" if item.get("is_match") else "GAP"
                     })
                 st.dataframe(table_data, use_container_width=True)
 
-            with st.expander("🔍 View Complete Extracted Context (Work History Bullets, Projects, Certifications)"):
+            with st.expander("View Complete Extracted Profile (Work History, Projects, Certifications)"):
                 st.json(res.get("resume_data", {}))
+
+        st.divider()
+        # ── Skill Correction Panel (moved below analysis, non-intrusive)
+        with st.expander("Correct Extracted Skills — Add Missing or Remove Incorrect Skills", expanded=False):
+            st.caption("The analysis already scans your full work history, projects, and certifications for evidence. Use this panel only if a skill is missing or incorrectly extracted.")
+            current_skills = res.get("user_confirmed_skills") or res.get("unified_skills", [])
+
+            col_add, col_sel = st.columns([1, 2])
+            with col_add:
+                new_skill = st.text_input("Add a Missing Skill", placeholder="e.g. LangGraph, RAG, dbt")
+                if st.button("Add Skill"):
+                    if new_skill and new_skill.strip() not in current_skills:
+                        current_skills.append(new_skill.strip())
+                        res["user_confirmed_skills"] = current_skills
+                        st.rerun()
+
+            with col_sel:
+                confirmed = st.multiselect("Current Skills List (uncheck to remove)", options=current_skills, default=current_skills)
+                if confirmed != current_skills:
+                    res["user_confirmed_skills"] = confirmed
+
+            if st.button("Re-run Skill Gap Analysis with Updated Skills", type="primary"):
+                with st.spinner("Re-analyzing against live 2026 market requirements..."):
+                    res = st.session_state["adk_team"].run_full_pipeline(res)
+                    st.session_state["adk_result"] = res
+                    st.rerun()
     else:
-        st.info("👆 Upload or select a sample resume above and click **'🚀 Run Complete Career Copilot Pipeline'** or **'🔍 Step 1'** to begin!")
+        st.info("Upload or select a sample resume above and click **'Run Complete Career Copilot Pipeline'** to begin.")
+
 
 # -------------------------------------------------------------------
 # HUB 2: AUTHENTIC IN-PLACE RESUME OPTIMIZER (SIDE-BY-SIDE DIFF)
 # -------------------------------------------------------------------
 with tab_resume:
-    st.subheader("✍️ Authentic In-Place Resume Optimizer (Side-by-Side Comparison)")
-    st.caption("Takes your real uploaded resume, preserves 100% of your authentic companies, dates, and projects, and surgically upgrades your bullet points using Google's XYZ formula and target keywords.")
+    st.subheader("✍️ Authentic In-Place Resume Optimizer")
+    st.caption("Your real resume is preserved exactly — companies, dates, and projects are untouched. Only bullet phrasing and keyword density are upgraded.")
 
     if res and res.get("tailored_resume"):
         tailored = res.get("tailored_resume", {})
-        
-        # ATS Metric Cards
+
+        # ── ATS Score Metrics
         ats = res.get("ats_audit", {})
         ats_score_before = tailored.get("ats_score_before", ats.get("ats_score", 68))
         ats_score_after = tailored.get("ats_score_after", 92)
 
         c_sc1, c_sc2, c_sc3 = st.columns(3)
         with c_sc1:
-            st.metric("Original ATS Score", f"{ats_score_before}/100", help="Score before keyword and metric optimization")
+            st.metric("Original ATS Score", f"{ats_score_before}/100")
         with c_sc2:
             st.metric("Optimized ATS Score", f"{ats_score_after}/100", delta=f"+{ats_score_after - ats_score_before} pts")
         with c_sc3:
-            st.metric("Target Role Alignment", f"{target_role}")
+            st.metric("Target Role", f"{target_role}")
 
-        # Surgical Changes List
+        # ── Granular ATS Score Breakdown & Audit Details
+        with st.expander("🔍 View Detailed ATS Audit Breakdown & Criteria", expanded=False):
+            sc_col1, sc_col2, sc_col3, sc_col4 = st.columns(4)
+            with sc_col1:
+                st.metric("Formatting & Structure", f"{ats.get('formatting_score', 0)}/25", help="Section headers, chronological layout, parser readability")
+            with sc_col2:
+                st.metric("Keyword Match", f"{ats.get('keyword_score', 0)}/35", help="Target role skill density and placement")
+            with sc_col3:
+                st.metric("Impact & Metrics", f"{ats.get('impact_score', 0)}/25", help="Action verbs, quantified scale, Google XYZ impact")
+            with sc_col4:
+                st.metric("Section Completeness", f"{ats.get('completeness_score', 0)}/15", help="Presence of summary, experience, projects, education, skills")
+
+            st.divider()
+            col_str, col_fix = st.columns(2)
+            with col_str:
+                st.markdown("**Resume Strengths Identified:**")
+                for s in ats.get("strengths", []):
+                    st.markdown(f"• {s}")
+            with col_fix:
+                st.markdown("**Critical Fixes Recommended:**")
+                for f in ats.get("critical_fixes", []):
+                    st.markdown(f"• {f}")
+
+        # ── What was changed
         key_changes = tailored.get("key_changes", [])
         if key_changes:
             st.divider()
-            st.markdown("##### ✨ Surgical In-Place Enhancements (Google XYZ Formula)")
+            st.markdown("##### What Was Improved")
             for chg in key_changes:
                 with st.container(border=True):
-                    st.markdown(f"❌ **Original**: *\"{chg.get('original_snippet')}\"*")
-                    st.markdown(f"✅ **Upgraded**: **\"{chg.get('improved_snippet')}\"**")
-                    st.info(f"💡 **Why this ranks higher**: {chg.get('rationale')}")
+                    st.markdown(f"**Before:** *\"{chg.get('original_snippet')}\"*")
+                    st.markdown(f"**After:** **\"{chg.get('improved_snippet')}\"**")
+                    st.caption(f"Why: {chg.get('rationale')}")
 
-        # Side-by-Side Comparison
+        # ── Version selector: use optimized or revert to original
         st.divider()
-        st.markdown("##### 🔍 Side-by-Side Resume Comparison")
+        use_original = st.toggle(
+            "Use Original Resume (revert all optimizations)",
+            value=False,
+            help="Switch to your original uploaded resume if you prefer it over the optimized version."
+        )
+
+        original_text = tailored.get("original_text") or res.get("resume_text", "")
+        optimized_text = tailored.get("optimized_text", "")
+
+        active_text = original_text if use_original else optimized_text
+
+        # ── Side-by-Side Comparison with diff highlighting
+        st.markdown("##### Side-by-Side Comparison")
+        st.caption("Lines highlighted in the optimized version indicate changes from the original.")
+
         col_orig, col_opt = st.columns(2)
 
+        orig_lines = original_text.splitlines()
+        opt_lines = optimized_text.splitlines()
+
+        # Build highlighted HTML for optimized side
+        import difflib
+        diff_matcher = difflib.SequenceMatcher(None, orig_lines, opt_lines)
+
+        highlighted_orig = []
+        highlighted_opt = []
+
+        for tag, i1, i2, j1, j2 in diff_matcher.get_opcodes():
+            for line in orig_lines[i1:i2]:
+                if tag == "replace":
+                    highlighted_orig.append(f'<span style="background:#fee2e2;display:block;padding:1px 4px;">{line}</span>')
+                elif tag == "delete":
+                    highlighted_orig.append(f'<span style="background:#fee2e2;display:block;padding:1px 4px;text-decoration:line-through;">{line}</span>')
+                else:
+                    highlighted_orig.append(f'<span style="display:block;padding:1px 4px;">{line}</span>')
+            for line in opt_lines[j1:j2]:
+                if tag in ("replace", "insert"):
+                    highlighted_opt.append(f'<span style="background:#dcfce7;display:block;padding:1px 4px;">{line}</span>')
+                else:
+                    highlighted_opt.append(f'<span style="display:block;padding:1px 4px;">{line}</span>')
+
+        diff_css = "font-family:monospace;font-size:12px;line-height:1.5;overflow-y:auto;max-height:420px;border:1px solid #e2e8f0;border-radius:6px;padding:8px;background:#f8fafc;"
+
         with col_orig:
-            st.markdown("#### 📄 Original Uploaded Resume")
-            st.text_area("Original Text (Read-Only)", value=res.get("resume_text", ""), height=350, disabled=True)
+            st.markdown("**Original Resume**")
+            orig_html = "".join(highlighted_orig)
+            st.markdown(f'<div style="{diff_css}">{orig_html}</div>', unsafe_allow_html=True)
 
         with col_opt:
-            st.markdown("#### ✨ ATS-Optimized Resume (Editable)")
-            current_opt_text = tailored.get("optimized_text", "")
-            edited_opt_text = st.text_area("Optimized Text (Edit in real-time below)", value=current_opt_text, height=350)
-            if edited_opt_text != current_opt_text:
-                tailored["optimized_text"] = edited_opt_text
+            st.markdown("**Optimized Resume** *(green = changed lines)*")
+            if use_original:
+                plain_html = "".join([f'<span style="display:block;padding:1px 4px;">{l}</span>' for l in orig_lines])
+                st.markdown(f'<div style="{diff_css}">{plain_html}</div>', unsafe_allow_html=True)
+            else:
+                opt_html = "".join(highlighted_opt)
+                st.markdown(f'<div style="{diff_css}">{opt_html}</div>', unsafe_allow_html=True)
 
-        # Download Buttons
-        col_dl_pdf, col_dl_md = st.columns(2)
-        with col_dl_pdf:
-            pdf_bytes_out = generate_ats_pdf(tailored)
-            st.download_button(
-                label="📄 Download Upgraded Resume (PDF)",
-                data=pdf_bytes_out,
-                file_name=f"{tailored.get('candidate_name', 'Candidate')}_{target_role.replace(' ', '_')}_Optimized.pdf",
-                mime="application/pdf",
-                type="primary",
-                use_container_width=True
-            )
-        with col_dl_md:
-            st.download_button(
-                label="📝 Download Upgraded Resume (Markdown)",
-                data=tailored.get("optimized_text", ""),
-                file_name=f"{tailored.get('candidate_name', 'Candidate')}_{target_role.replace(' ', '_')}_Optimized.md",
-                mime="text/markdown",
-                use_container_width=True
-            )
+        # ── Editable area for final tweaks
+        st.divider()
+        st.markdown("##### Edit & Finalize Your Resume")
+        st.caption("Make any final edits below before downloading. Changes are saved automatically in this session.")
+
+        edited_text = st.text_area(
+            "Editable Resume Text",
+            value=active_text,
+            height=420,
+            label_visibility="collapsed"
+        )
+
+        # Persist edits back into state
+        if use_original:
+            tailored["original_text"] = edited_text
+        else:
+            tailored["optimized_text"] = edited_text
+        res["tailored_resume"] = tailored
+        st.session_state["adk_result"] = res
+
+        # ── Single PDF Download
+        st.divider()
+        final_for_pdf = {**tailored, "optimized_text": edited_text}
+        pdf_bytes_out = generate_ats_pdf(final_for_pdf)
+        cand_name = tailored.get("candidate_name", "Candidate").replace(" ", "_")
+        role_slug = target_role.replace(" ", "_").replace("/", "-")
+        version_tag = "Original" if use_original else "Optimized"
+
+        st.download_button(
+            label=f"Download Resume as PDF ({version_tag})",
+            data=pdf_bytes_out,
+            file_name=f"{cand_name}_{role_slug}_{version_tag}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=False
+        )
+
     else:
-        st.info("👆 Run the multi-agent analysis to optimize your authentic resume in-place!")
+        st.info("Run the pipeline to generate an optimized resume.")
+
 
 # -------------------------------------------------------------------
 # HUB 3: 30-60-90 DAY DYNAMIC ROADMAP & LEARNING PACK
