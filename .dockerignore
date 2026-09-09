@@ -12,4 +12,11 @@ venv/
 *.log
 .system_generated
 sample_resumes/*.pdf
-test_*.py
+test_adk_pipeline.py
+test_gcp_connection.py
+test_parser_fallback.py
+test_pdf_parsing.py
+test_real_resume_parser.py
+test_resume_parser.py
+test_upgraded_pipeline.py
+test_user_resume.py
