@@ -10,24 +10,21 @@ from core.agents.resume_generator_agent import ResumeGeneratorADKAgent
 from core.agents.rag_curator_agent import RAGCuratorADKAgent
 from core.agents.project_generator_agent import ProjectGeneratorADKAgent
 from core.agents.interview_simulator_agent import InterviewSimulatorADKAgent
-from core.agents.live_job_market_agent import LiveJobMarketADKAgent
 
 class CareerCopilotADKTeam:
     """
     Google ADK 2.0 Multi-Agent Team Orchestrator
-    Coordinates 10 specialized autonomous agents with Human-in-the-Loop controls,
-    Dynamic Market Grounding, Interactive Mock Interviewer, and Live Job Placement:
-    1. ResumeParserADKAgent (Deep PDF/Text + Work Bullets + Projects + Certifications + LinkedIn)
-    2. GitHubInspectorADKAgent (Candidate GitHub repo & language profiling via GitHub MCP)
+    Focused 4-Hub Career Intelligence System:
+    1. ResumeParserADKAgent (Deep PDF/Text Ingestion + Work Bullets + Projects + Certifications + LinkedIn)
+    2. GitHubInspectorADKAgent (Candidate GitHub profiling via GitHub MCP)
     3. SkillNormalizerADKAgent (Token-exact normalization & deduplication)
     4. GapAnalyzerADKAgent (Dynamic 2-Tier 70/30 Weighted Live Market Search Grounding)
-    5. ATSAnalyzerADKAgent (ATS Compatibility Scoring & Google XYZ Formula Rewrites)
-    6. ResumeGeneratorADKAgent (1-Click Recruiter-Ready ATS Tailored Resume Generator)
-    7. RoadmapADKAgent (Personalized 30-60-90 Day Upskilling Roadmap with Weekly Time Budget)
+    5. ATSAnalyzerADKAgent (100-pt ATS Resume Compatibility Audit)
+    6. ResumeGeneratorADKAgent (Authentic In-Place Resume Optimizer on Original Text)
+    7. RoadmapADKAgent (Personalized 30-60-90 Day Upskilling Roadmap by Weekly Budget)
     8. RAGCuratorADKAgent (Resource MCP: Books, Papers, Official Docs, Videos)
     9. ProjectGeneratorADKAgent (GitHub MCP real public repository discovery & blueprints)
-    10. LiveJobMarketADKAgent (Live Active Job Postings with Match % & Direct Apply Links)
-    11. InterviewSimulatorADKAgent (Multi-turn conversational AI mock interviewer with live scoring)
+    10. InterviewSimulatorADKAgent (Multi-turn conversational AI mock interviewer with live scoring)
     """
     def __init__(self):
         self.resume_parser = ResumeParserADKAgent()
@@ -40,7 +37,6 @@ class CareerCopilotADKTeam:
         self.rag_curator = RAGCuratorADKAgent()
         self.project_generator = ProjectGeneratorADKAgent()
         self.interview_simulator = InterviewSimulatorADKAgent()
-        self.job_market_agent = LiveJobMarketADKAgent()
 
     def parse_profile(self, state: ADKState) -> ADKState:
         """Stage 1: Multimodal Candidate Profile Ingestion (Resume, GitHub, LinkedIn)."""
@@ -85,7 +81,6 @@ class CareerCopilotADKTeam:
         if not state.get("resume_data"):
             state = self.parse_profile(state)
 
-        # Use confirmed skills if set by user, otherwise unified skills
         active_skills = state.get("user_confirmed_skills") or state.get("unified_skills", [])
         target_role = state.get("target_role", "Data Engineer")
         seniority_level = state.get("seniority_level", "Mid-Senior")
@@ -109,23 +104,25 @@ class CareerCopilotADKTeam:
         state["analysis_method"] = gap_result.get("analysis_method", "Live 2026 Market Search Grounding")
         state["semantic_matches"] = gap_result.get("semantic_matches", [])
 
-        # Priority gaps (Human in loop selection if provided, else all gaps)
+        # Priority gaps
         active_gaps = state.get("user_prioritized_gaps") or state["skills_gap"]
 
         # 3. ATS Resume Compatibility Audit
-        resume_text = state.get("resume_text") or str(state.get("resume_data", ""))
+        raw_resume_text = state.get("resume_text") or str(state.get("resume_data", ""))
         ats_audit = self.ats_analyzer.audit(
-            resume_text=resume_text,
+            resume_text=raw_resume_text,
             target_role=target_role,
             missing_skills=active_gaps
         )
         state["ats_audit"] = ats_audit
 
-        # 4. 1-Click Tailored ATS Resume Generation
-        tailored_resume = self.resume_generator.generate(
-            resume_data=state.get("resume_data", {}),
+        # 4. In-Place Authentic Resume Optimization on Real Text
+        cand_name = state.get("resume_data", {}).get("candidate_name", "Candidate")
+        tailored_resume = self.resume_generator.optimize_in_place(
+            raw_resume_text=raw_resume_text,
             target_role=target_role,
-            missing_skills=active_gaps
+            missing_skills=active_gaps,
+            candidate_name=cand_name
         )
         state["tailored_resume"] = tailored_resume
 
@@ -150,14 +147,5 @@ class CareerCopilotADKTeam:
         )
         state["project_blueprints"] = discovered_projects
         state["github_projects"] = discovered_projects
-
-        # 7. Live Active Job Postings with Calculated Match %
-        live_jobs = self.job_market_agent.fetch_live_job_postings(
-            target_role=target_role,
-            location="Remote / United States",
-            limit=10,
-            candidate_skills=state["verified_skills"]
-        )
-        state["live_jobs"] = live_jobs
 
         return state

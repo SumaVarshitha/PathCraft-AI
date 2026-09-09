@@ -20,7 +20,7 @@ from core.state import ADKState, ResumeSchema, SkillGapResult, EvaluationResult
 app = FastAPI(
     title="PathCraft AI - Google ADK 2.0 API Engine",
     description="Enterprise Multi-Agent Career & Skill Engineering API powered by Google ADK 2.0, Vector Semantic RAG & MCP Tools",
-    version="3.5.0"
+    version="3.6.0"
 )
 
 # Enable CORS
@@ -53,6 +53,12 @@ class GapAnalysisRequest(BaseModel):
     github_data: Optional[Dict[str, Any]] = Field(default=None, description="GitHub profile inspection data")
     linkedin_text: Optional[str] = Field(default=None, description="Imported LinkedIn text")
 
+class InPlaceResumeOptimizeRequest(BaseModel):
+    raw_resume_text: str = Field(description="Candidate's actual original resume text")
+    target_role: str = Field(default="Data Engineer", description="Target role")
+    missing_skills: List[str] = Field(default_factory=list, description="Target missing skills to weave in")
+    candidate_name: str = Field(default="Candidate", description="Candidate name")
+
 class CurateCoursesRequest(BaseModel):
     missing_skills: List[str] = Field(description="List of missing skills to curate multi-format resources for")
 
@@ -80,12 +86,6 @@ class FinalReportCardRequest(BaseModel):
     target_role: str = Field(description="Target career role")
     turns: List[Dict[str, Any]] = Field(description="List of completed interview turns with questions and evaluations")
 
-class LiveJobsRequest(BaseModel):
-    target_role: str = Field(description="Target career job role")
-    location: str = Field(default="Remote / United States", description="Target location or Remote")
-    limit: int = Field(default=10, description="Number of job openings to fetch (5 to 30)")
-    candidate_skills: List[str] = Field(default_factory=list, description="Candidate verified skills for match scoring")
-
 class FullPipelineRequest(BaseModel):
     resume_text: Optional[str] = None
     linkedin_text: Optional[str] = None
@@ -102,7 +102,7 @@ def root():
     return {
         "status": "online",
         "service": "PathCraft AI - Google ADK 2.0 & MCP Tools Engine",
-        "version": "3.5.0",
+        "version": "3.6.0",
         "docs_url": "http://localhost:8000/docs",
         "models": [config.MODEL_FLASH, config.MODEL_PRO]
     }
@@ -151,7 +151,21 @@ def analyze_gap(req: GapAnalysisRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/interview/next-question", summary="Agent 7: Generate Next Conversational Interview Question")
+@app.post("/api/v1/optimize-resume-in-place", summary="Agent 6: In-Place Authentic Resume Optimizer")
+def optimize_resume_in_place(req: InPlaceResumeOptimizeRequest):
+    """Executes ResumeGeneratorADKAgent in-place optimizer on real original resume text."""
+    try:
+        res = adk_team.resume_generator.optimize_in_place(
+            raw_resume_text=req.raw_resume_text,
+            target_role=req.target_role,
+            missing_skills=req.missing_skills,
+            candidate_name=req.candidate_name
+        )
+        return {"status": "success", "data": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/interview/next-question", summary="Agent 10: Generate Next Conversational Interview Question")
 def get_next_interview_question(req: NextInterviewQuestionRequest):
     """Executes InterviewSimulatorADKAgent question generator."""
     try:
@@ -168,7 +182,7 @@ def get_next_interview_question(req: NextInterviewQuestionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/interview/evaluate-turn", summary="Agent 7: Evaluate Mock Interview Turn with Model Answer")
+@app.post("/api/v1/interview/evaluate-turn", summary="Agent 10: Evaluate Mock Interview Turn with Model Answer")
 def evaluate_interview_turn(req: EvaluateInterviewAnswerRequest):
     """Executes InterviewSimulatorADKAgent answer scoring, feedback & model snippet."""
     try:
@@ -183,7 +197,7 @@ def evaluate_interview_turn(req: EvaluateInterviewAnswerRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/interview/report-card", summary="Agent 7: Generate Final Mock Interview Scorecard")
+@app.post("/api/v1/interview/report-card", summary="Agent 10: Generate Final Mock Interview Scorecard")
 def get_interview_report_card(req: FinalReportCardRequest):
     """Calculates overall average score and hire readiness rating."""
     try:
@@ -192,20 +206,6 @@ def get_interview_report_card(req: FinalReportCardRequest):
             turns=req.turns
         )
         return {"status": "success", "report_card": report}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/v1/fetch-live-jobs", summary="Agent 8: Fetch Live Job Openings (10-30+) with Match Scoring")
-def fetch_live_jobs(req: LiveJobsRequest):
-    """Executes LiveJobMarketADKAgent via Google Search Grounding and Job MCP."""
-    try:
-        jobs = adk_team.job_market_agent.fetch_live_job_postings(
-            target_role=req.target_role,
-            location=req.location,
-            limit=req.limit,
-            candidate_skills=req.candidate_skills
-        )
-        return {"status": "success", "count": len(jobs), "data": jobs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

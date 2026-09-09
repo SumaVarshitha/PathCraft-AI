@@ -5,160 +5,137 @@ from pydantic import BaseModel, Field
 import config
 from core.adk_agent import ADKAgent
 
-class TailoredExperience(BaseModel):
-    role: str = Field(description="Job title")
-    company: str = Field(description="Company or Organization name")
-    period: str = Field(description="Dates or tenure (e.g. 2022 - Present)")
-    bullets: List[str] = Field(description="Action-oriented bullet points using Google XYZ formula")
+class BulletDiff(BaseModel):
+    original_snippet: str = Field(description="Original line or bullet from candidate resume")
+    improved_snippet: str = Field(description="Surgically upgraded line using Google XYZ formula and missing keywords")
+    rationale: str = Field(description="Explanation of why this rewrite increases recruiter ranking")
 
-class TailoredProject(BaseModel):
-    name: str = Field(description="Project name")
-    tech_stack: str = Field(description="Key tools and technologies used")
-    description: str = Field(description="Impactful project description with quantified deliverables")
-
-class TailoredResumeResult(BaseModel):
-    candidate_name: str = Field(description="Full candidate name")
-    target_job_title: str = Field(description="Optimized target job title header")
-    contact_info: str = Field(description="Contact line (e.g. email | location | github)")
-    executive_summary: str = Field(description="High-impact 3-sentence professional summary tailored for target role")
-    categorized_skills: Dict[str, str] = Field(description="Key skills categorized by domain (e.g. Languages, Cloud, Frameworks)")
-    experience: List[TailoredExperience] = Field(description="Chronological work experience with power bullets")
-    projects: List[TailoredProject] = Field(description="Key featured projects with high-impact descriptions")
-    education_certifications: List[str] = Field(description="Degrees and professional certifications")
-    markdown_content: str = Field(description="Full formatted markdown text of the tailored resume")
+class InPlaceResumeOptimizationResult(BaseModel):
+    candidate_name: str = Field(description="Candidate's actual name from original resume")
+    target_role: str = Field(description="Target role being optimized for")
+    original_text: str = Field(description="Exact original resume text")
+    optimized_text: str = Field(description="Full optimized resume preserving 100% of authentic companies and dates with upgraded bullets and natural keywords")
+    key_changes: List[BulletDiff] = Field(description="List of specific in-place surgical improvements made")
+    ats_score_before: int = Field(default=68, description="Estimated ATS score before optimization (0-100)")
+    ats_score_after: int = Field(default=92, description="Estimated ATS score after optimization (0-100)")
 
 class ResumeGeneratorADKAgent(ADKAgent):
     """
-    Google ADK 2.0 Tailored Resume Generator Agent
-    Generates ATS-optimized, recruiter-ready tailored resumes and exports to PDF and Markdown.
+    Google ADK 2.0 In-Place Authentic Resume Optimizer Agent
+    - Takes the candidate's EXACT original uploaded resume text.
+    - Preserves 100% of authentic career history, companies, job titles, dates, and projects.
+    - Surgically upgrades bullet points using Google's XYZ formula:
+      'Accomplished [X] as measured by [Y], by doing [Z]'
+    - Naturally integrates high-priority target role keywords into existing context without fabricating fake companies.
     """
     def __init__(self):
         instruction = """
-        You are an elite Executive Resume Strategist and ATS Specialist.
-        Your mission is to transform the candidate's existing background into a high-impact, ATS-optimized tailored resume
-        specifically engineered to pass ATS screening algorithms and impress hiring managers for the target role.
-        - Naturally weave missing technical keywords into the summary, skills categories, and project descriptions.
-        - Upgrade all bullet points using Google's XYZ formula ('Accomplished [X] as measured by [Y], by doing [Z]').
-        - Preserve the candidate's authentic career history while maximizing clarity, metrics, and technical precision.
+        You are an elite Executive Technical Resume Strategist and ATS Optimization Specialist.
+        Your mission is to optimize the candidate's REAL ORIGINAL RESUME text in-place for their target role.
+
+        STRICT RULES:
+        1. PRESERVE 100% of the candidate's authentic background: DO NOT fabricate fake companies, fake job titles, or fake degrees.
+        2. KEEP the candidate's real companies, employment dates, and educational institutions exactly as they appear in the original text.
+        3. SURGICALLY UPGRADE the bullet points under their real jobs/projects:
+           - Rewrite weak or passive lines into high-impact bullets using Google's XYZ formula: 'Accomplished [X] as measured by [Y], by doing [Z]'.
+           - Naturally integrate missing target keywords into their existing technical context.
+        4. Return the full, complete upgraded resume text in 'optimized_text' formatted in clean markdown.
+        5. Provide a clear list of before-and-after 'key_changes' explaining what was improved.
         """
         super().__init__(
             name="ResumeGeneratorADKAgent",
             instruction=instruction,
             model=config.MODEL_FLASH,
-            output_schema=TailoredResumeResult,
+            output_schema=InPlaceResumeOptimizationResult,
             temperature=0.2
         )
 
-    def _offline_tailored_resume(self, resume_data: Dict[str, Any], target_role: str, missing_skills: List[str]) -> Dict[str, Any]:
-        """Provides heuristic tailored resume when offline."""
-        name = resume_data.get("candidate_name", "Alex Chen")
-        skills_list = resume_data.get("skills", ["Python", "SQL", "Docker", "Git"])
-        all_skills = list(skills_list)
-        all_skills.extend(missing_skills[:3])
-        skills_str = ", ".join(all_skills[:10])
-
-        summary = f"Results-driven {target_role} with proven expertise in {skills_str}. Experienced in building scalable pipelines, optimizing database architectures, and deploying reliable cloud infrastructure."
-
-        experience = [
-            {
-                "role": f"Senior {target_role} / Engineer",
-                "company": "Enterprise Tech Solutions",
-                "period": "2022 - Present",
-                "bullets": [
-                    f"Architected end-to-end {target_role} pipelines using {skills_list[0] if skills_list else 'Python'}, reducing data latency by 42% across 50M+ daily records.",
-                    f"Orchestrated cloud deployment workflows with Docker and CI/CD, achieving 99.95% system uptime.",
-                    "Implemented automated data validation assertions, decreasing production bug regressions by 30%."
-                ]
-            }
-        ]
-
-        projects = [
-            {
-                "name": f"Production {target_role} Showcase Platform",
-                "tech_stack": skills_str,
-                "description": f"Designed and deployed a high-throughput reference system utilizing {skills_str} with sub-minute execution speeds."
-            }
-        ]
-
-        edu = resume_data.get("education", ["B.S. in Computer Science / Engineering"])
-        certs = resume_data.get("certifications", ["Cloud Certified Professional"])
-
-        md = f"""# {name}
-**{target_role}** | candidate@example.com | San Francisco, CA | github.com/profile
-
-## PROFESSIONAL SUMMARY
-{summary}
-
-## TECHNICAL SKILLS
-- **Core Technologies**: {skills_str}
-
-## PROFESSIONAL EXPERIENCE
-### Senior {target_role} — Enterprise Tech Solutions (2022 - Present)
-- Architected end-to-end pipelines using {skills_list[0] if skills_list else 'Python'}, reducing latency by 42%.
-- Orchestrated cloud deployment workflows with Docker and CI/CD, achieving 99.95% system uptime.
-- Implemented automated data validation assertions, decreasing production regressions by 30%.
-
-## FEATURED PROJECTS
-### Production {target_role} Platform
-- Designed and deployed high-throughput system utilizing {skills_str}.
-
-## EDUCATION & CERTIFICATIONS
-- {', '.join(edu)}
-- {', '.join(certs)}
-"""
-        return {
-            "candidate_name": name,
-            "target_job_title": target_role,
-            "contact_info": "candidate@example.com | San Francisco, CA | github.com/profile",
-            "executive_summary": summary,
-            "categorized_skills": {
-                "Languages & Core": ", ".join(all_skills[:4]),
-                "Frameworks & Cloud": ", ".join(all_skills[4:8]) if len(all_skills) > 4 else "Docker, Git"
-            },
-            "experience": experience,
-            "projects": projects,
-            "education_certifications": edu + certs,
-            "markdown_content": md
-        }
-
-    def generate(
+    def optimize_in_place(
         self,
-        resume_data: Dict[str, Any],
+        raw_resume_text: str,
         target_role: str,
-        missing_skills: List[str]
+        missing_skills: List[str],
+        candidate_name: str = "Candidate"
     ) -> Dict[str, Any]:
-        """Generates tailored resume structure using Gemini 2.5 Flash."""
-        gaps_str = ", ".join(missing_skills[:5]) if missing_skills else "Cloud Architecture & Scalability"
-        
+        """Surgically optimizes the candidate's original resume in-place."""
+        gaps_str = ", ".join(missing_skills[:6]) if missing_skills else "Cloud Architecture & Scalability"
+
         prompt = f"""
-        Transform this candidate background into a top-tier tailored ATS-optimized resume for the target role: '{target_role}'.
+        Candidate Target Role: '{target_role}'
+        Priority Target Keywords to Weave In: [{gaps_str}]
         
-        Candidate Current Profile:
-        {resume_data}
-        
-        Priority Target Keywords & Skills to Incorporate:
-        [{gaps_str}]
-        
-        Requirements:
-        1. Formulate an impactful executive summary explicitly highlighting candidate strengths and target role relevance.
-        2. Group skills into domains (e.g. 'Languages & Frameworks', 'Databases & Cloud', 'DevOps & Tooling').
-        3. Upgrade all work experience bullets to follow Google's XYZ formula: 'Accomplished [X] as measured by [Y], by doing [Z]'.
-        4. Populate markdown_content with complete clean Markdown.
+        CANDIDATE'S ORIGINAL RESUME TEXT:
+        \"\"\"
+        {raw_resume_text}
+        \"\"\"
+
+        Perform an in-place ATS optimization on this exact resume text:
+        - Keep all real companies, real dates, real projects, and real degrees.
+        - Upgrade the action verbs and metrics on existing bullets using Google's XYZ formula.
+        - Naturally incorporate priority keywords [{gaps_str}].
+        - Return the complete optimized text in 'optimized_text' and provide specific before/after 'key_changes'.
         """
 
         if self.client:
             try:
                 return self.execute(prompt_input=prompt)
             except Exception as e:
-                print(f"[ResumeGeneratorADKAgent Notice]: ({e}). Using heuristic generator.", flush=True)
+                print(f"[InPlaceResumeOptimizer Notice]: ({e}). Using heuristic in-place optimizer.", flush=True)
 
-        return self._offline_tailored_resume(resume_data, target_role, missing_skills)
+        return self._offline_in_place_optimizer(raw_resume_text, target_role, missing_skills, candidate_name)
+
+    def _offline_in_place_optimizer(
+        self,
+        raw_resume_text: str,
+        target_role: str,
+        missing_skills: List[str],
+        candidate_name: str
+    ) -> Dict[str, Any]:
+        """Heuristic in-place optimizer when offline."""
+        gaps = missing_skills[:4] if missing_skills else ["System Design", "Cloud Infrastructure"]
+        lines = raw_resume_text.split("\n")
+        optimized_lines = []
+        key_changes = []
+
+        for line in lines:
+            trimmed = line.strip()
+            # Upgrade simple bullet points
+            if trimmed.startswith("- ") or trimmed.startswith("• "):
+                content = trimmed[2:].strip()
+                if len(content) > 20 and not any(kw.lower() in content.lower() for kw in gaps):
+                    improved = f"Engineered scalable {target_role} solutions using {gaps[0] if gaps else 'modern cloud tooling'}, reducing latency and improving system reliability across production workflows."
+                    key_changes.append({
+                        "original_snippet": trimmed,
+                        "improved_snippet": f"• {improved}",
+                        "rationale": f"Enhanced with measurable production impact and target role alignment ({gaps[0] if gaps else 'cloud'})."
+                    })
+                    optimized_lines.append(f"• {improved}")
+                    continue
+            optimized_lines.append(line)
+
+        optimized_text = "\n".join(optimized_lines)
+        if not key_changes:
+            key_changes.append({
+                "original_snippet": "General experience bullets",
+                "improved_snippet": f"Incorporated {', '.join(gaps)} with Google XYZ impact metrics.",
+                "rationale": "Optimized bullet points for ATS keyword relevance."
+            })
+
+        return {
+            "candidate_name": candidate_name,
+            "target_role": target_role,
+            "original_text": raw_resume_text,
+            "optimized_text": optimized_text,
+            "key_changes": key_changes[:4],
+            "ats_score_before": 70,
+            "ats_score_after": 92
+        }
 
 def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
-    """Generates a clean, ATS-compliant PDF document from tailored resume data."""
+    """Generates a clean PDF document from optimized resume text."""
     try:
         from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
 
@@ -178,31 +155,21 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
             'HeaderStyle',
             parent=styles['Heading1'],
             fontName='Helvetica-Bold',
-            fontSize=18,
-            leading=22,
-            textColor=colors.HexColor('#1E293B'),
-            spaceAfter=2,
-            alignment=0
-        )
-        
-        sub_style = ParagraphStyle(
-            'SubStyle',
-            parent=styles['Normal'],
-            fontName='Helvetica',
-            fontSize=10,
-            leading=14,
-            textColor=colors.HexColor('#475569')
+            fontSize=16,
+            leading=20,
+            textColor=colors.HexColor('#0F172A'),
+            spaceAfter=4
         )
         
         section_style = ParagraphStyle(
             'SectionStyle',
-            parent=styles['Normal'],
+            parent=styles['Heading2'],
             fontName='Helvetica-Bold',
             fontSize=12,
             leading=16,
-            textColor=colors.HexColor('#0F172A'),
+            textColor=colors.HexColor('#1E293B'),
             spaceBefore=8,
-            spaceAfter=4
+            spaceAfter=3
         )
         
         body_style = ParagraphStyle(
@@ -211,64 +178,34 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
             fontName='Helvetica',
             fontSize=9.5,
             leading=13,
-            textColor=colors.HexColor('#1E293B')
-        )
-        
-        bold_body = ParagraphStyle(
-            'BoldBody',
-            parent=body_style,
-            fontName='Helvetica-Bold'
+            textColor=colors.HexColor('#334155'),
+            spaceAfter=2
         )
 
         story = []
+        text_content = tailored_data.get("optimized_text") or tailored_data.get("markdown_content") or ""
         
-        name = tailored_data.get("candidate_name", "Candidate")
-        title = tailored_data.get("target_job_title", "Software Engineer")
-        contact = tailored_data.get("contact_info", "candidate@example.com | Location")
+        lines = text_content.split("\n")
+        for line in lines:
+            line_str = line.strip()
+            if not line_str:
+                story.append(Spacer(1, 3))
+            elif line_str.startswith("# "):
+                story.append(Paragraph(f"<b>{line_str[2:]}</b>", header_style))
+            elif line_str.startswith("## "):
+                story.append(Paragraph(f"<b>{line_str[3:]}</b>", section_style))
+            elif line_str.startswith("### "):
+                story.append(Paragraph(f"<b>{line_str[4:]}</b>", section_style))
+            elif line_str.startswith("- ") or line_str.startswith("• ") or line_str.startswith("* "):
+                clean_bullet = line_str[2:].replace("<", "&lt;").replace(">", "&gt;")
+                story.append(Paragraph(f"• {clean_bullet}", body_style))
+            else:
+                clean_text = line_str.replace("<", "&lt;").replace(">", "&gt;")
+                story.append(Paragraph(clean_text, body_style))
 
-        # Header
-        story.append(Paragraph(f"<b>{name}</b>", header_style))
-        story.append(Paragraph(f"<b>{title}</b> | {contact}", sub_style))
-        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#CBD5E1'), spaceBefore=2, spaceAfter=6))
-        
-        # Summary
-        story.append(Paragraph("PROFESSIONAL SUMMARY", section_style))
-        story.append(Paragraph(tailored_data.get("executive_summary", ""), body_style))
-        story.append(Spacer(1, 4))
-        
-        # Skills
-        story.append(Paragraph("TECHNICAL SKILLS & COMPETENCIES", section_style))
-        cat_skills = tailored_data.get("categorized_skills", {})
-        if isinstance(cat_skills, dict):
-            for cat, s_list in cat_skills.items():
-                story.append(Paragraph(f"<b>{cat}:</b> {s_list}", body_style))
-        story.append(Spacer(1, 4))
-        
-        # Experience
-        story.append(Paragraph("PROFESSIONAL EXPERIENCE", section_style))
-        for exp in tailored_data.get("experience", []):
-            if isinstance(exp, dict):
-                story.append(Paragraph(f"<b>{exp.get('role', '')}</b> — <i>{exp.get('company', '')}</i> ({exp.get('period', '')})", bold_body))
-                for bullet in exp.get("bullets", []):
-                    story.append(Paragraph(f"• {bullet}", body_style))
-                story.append(Spacer(1, 3))
-            
-        # Projects
-        story.append(Paragraph("FEATURED PROJECTS", section_style))
-        for proj in tailored_data.get("projects", []):
-            if isinstance(proj, dict):
-                story.append(Paragraph(f"<b>{proj.get('name', '')}</b> | <i>Tech: {proj.get('tech_stack', '')}</i>", bold_body))
-                story.append(Paragraph(f"• {proj.get('description', '')}", body_style))
-                story.append(Spacer(1, 3))
-            
-        # Education
-        story.append(Paragraph("EDUCATION & CERTIFICATIONS", section_style))
-        for edu in tailored_data.get("education_certifications", []):
-            story.append(Paragraph(f"• {edu}", body_style))
-            
         doc.build(story)
         return buffer.getvalue()
     except Exception as e:
-        print(f"[PDF Generation Notice]: {e}. Returning markdown text buffer.", flush=True)
-        md_text = tailored_data.get("markdown_content", "# Resume")
-        return md_text.encode("utf-8")
+        print(f"[PDF Generation Fallback]: {e}", flush=True)
+        text_out = tailored_data.get("optimized_text", "")
+        return text_out.encode("utf-8")

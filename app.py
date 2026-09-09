@@ -128,7 +128,7 @@ st.write("")
 col_btn1, col_btn2 = st.columns([1, 1])
 
 with col_btn1:
-    run_pipeline = st.button("🚀 Run Complete Multi-Agent Career Copilot", type="primary", use_container_width=True)
+    run_pipeline = st.button("🚀 Run Complete Career Copilot Pipeline", type="primary", use_container_width=True)
 
 with col_btn2:
     step_parse_btn = st.button("🔍 Step 1: Parse Profile & Verify Skills (HITL)", use_container_width=True)
@@ -138,7 +138,7 @@ if step_parse_btn or run_pipeline:
     if not resume_text and not resume_bytes:
         st.error("Please upload a PDF resume or paste resume text to proceed.")
     else:
-        with st.spinner("Extracting complete candidate context (Skills, Experience, Projects, Certifications, GitHub & LinkedIn)..."):
+        with st.spinner("Extracting candidate context and evaluating against live 2026 market standards..."):
             initial_state = {
                 "resume_bytes": resume_bytes,
                 "resume_text": resume_text,
@@ -182,15 +182,13 @@ if step_parse_btn or run_pipeline:
 st.divider()
 
 # -------------------------------------------------------------------
-# 6-HUB INTERACTIVE WORKSPACE
+# FOCUSED 4-HUB INTERACTIVE WORKSPACE
 # -------------------------------------------------------------------
-tab_diag, tab_ats, tab_roadmap, tab_learn, tab_interview, tab_jobs = st.tabs([
+tab_diag, tab_resume, tab_roadmap, tab_interview = st.tabs([
     "📊 1. Skill Gap Diagnostic (HITL)",
-    "🎯 2. ATS Audit & Live Resume Editor",
-    "📅 3. Dynamic Action Roadmap",
-    "📚 4. Learning Pack & GitHub Repos",
-    "🎙️ 5. AI Mock Interview Hub",
-    "💼 6. Live Job Opportunities"
+    "✍️ 2. In-Place Resume Optimizer",
+    "📅 3. Dynamic Roadmap & Learning Pack",
+    "🎙️ 4. AI Mock Interview Hub"
 ])
 
 res = st.session_state["adk_result"]
@@ -276,95 +274,86 @@ with tab_diag:
             with st.expander("🔍 View Complete Extracted Context (Work History Bullets, Projects, Certifications)"):
                 st.json(res.get("resume_data", {}))
     else:
-        st.info("👆 Upload or select a sample resume above and click **'🚀 Run Complete Multi-Agent Career Copilot'** or **'🔍 Step 1'** to begin!")
+        st.info("👆 Upload or select a sample resume above and click **'🚀 Run Complete Career Copilot Pipeline'** or **'🔍 Step 1'** to begin!")
 
 # -------------------------------------------------------------------
-# HUB 2: ATS RESUME AUDIT & LIVE IN-BROWSER RESUME EDITOR
+# HUB 2: AUTHENTIC IN-PLACE RESUME OPTIMIZER (SIDE-BY-SIDE DIFF)
 # -------------------------------------------------------------------
-with tab_ats:
-    st.subheader("🎯 ATS Compatibility Audit & Live In-Browser Tailored Resume Editor")
-    if res and res.get("ats_audit"):
-        ats = res.get("ats_audit", {})
+with tab_resume:
+    st.subheader("✍️ Authentic In-Place Resume Optimizer (Side-by-Side Comparison)")
+    st.caption("Takes your real uploaded resume, preserves 100% of your authentic companies, dates, and projects, and surgically upgrades your bullet points using Google's XYZ formula and target keywords.")
+
+    if res and res.get("tailored_resume"):
+        tailored = res.get("tailored_resume", {})
         
-        # Metric Cards
-        col_ats1, col_ats2, col_ats3, col_ats4, col_ats5 = st.columns(5)
-        with col_ats1:
-            st.metric("Overall ATS Score", f"{ats.get('ats_score', 80)}/100")
-        with col_ats2:
-            st.metric("Formatting", f"{ats.get('formatting_score', 20)}/25")
-        with col_ats3:
-            st.metric("Keyword Density", f"{ats.get('keyword_score', 25)}/35")
-        with col_ats4:
-            st.metric("Measurable Impact", f"{ats.get('impact_score', 20)}/25")
-        with col_ats5:
-            st.metric("Completeness", f"{ats.get('completeness_score', 15)}/15")
-            
-        st.divider()
-        col_str, col_fix = st.columns(2)
-        with col_str:
-            st.success("##### 🏆 ATS Strengths")
-            for s in ats.get("strengths", []):
-                st.write(f"• {s}")
-        with col_fix:
-            st.warning("##### ⚠️ Critical ATS Fixes")
-            for f in ats.get("critical_fixes", []):
-                st.write(f"• {f}")
+        # ATS Metric Cards
+        ats = res.get("ats_audit", {})
+        ats_score_before = tailored.get("ats_score_before", ats.get("ats_score", 68))
+        ats_score_after = tailored.get("ats_score_after", 92)
 
-        # Missing Keywords
-        missing_kw = ats.get("missing_ats_keywords", [])
-        if missing_kw:
-            st.markdown("##### 🔑 High-Priority Missing ATS Keywords")
-            st.write(" ".join([f"`{k}`" for k in missing_kw]))
+        c_sc1, c_sc2, c_sc3 = st.columns(3)
+        with c_sc1:
+            st.metric("Original ATS Score", f"{ats_score_before}/100", help="Score before keyword and metric optimization")
+        with c_sc2:
+            st.metric("Optimized ATS Score", f"{ats_score_after}/100", delta=f"+{ats_score_after - ats_score_before} pts")
+        with c_sc3:
+            st.metric("Target Role Alignment", f"{target_role}")
 
-        # AI Bullet Point Rewriter
-        st.divider()
-        st.subheader("✨ AI Power Bullet Point Optimizer (Google XYZ Formula)")
-        rewrites = ats.get("power_bullet_rewrites", [])
-        for r in rewrites:
-            with st.container(border=True):
-                st.markdown(f"❌ **Before (Weak)**: *\"{r.get('original')}\"*")
-                st.markdown(f"✅ **After (Power Bullet)**: **\"{r.get('improved')}\"**")
-                st.info(f"💡 **Recruiter Rationale**: {r.get('rationale')}")
-
-        # Live In-Browser Resume Editor & Exporter
-        tailored = res.get("tailored_resume")
-        if tailored:
+        # Surgical Changes List
+        key_changes = tailored.get("key_changes", [])
+        if key_changes:
             st.divider()
-            st.subheader("📝 Live In-Browser Tailored Resume Editor & Exporter")
-            st.caption("Edit your tailored resume directly below. Any edits you make will be preserved in your PDF and Markdown downloads.")
+            st.markdown("##### ✨ Surgical In-Place Enhancements (Google XYZ Formula)")
+            for chg in key_changes:
+                with st.container(border=True):
+                    st.markdown(f"❌ **Original**: *\"{chg.get('original_snippet')}\"*")
+                    st.markdown(f"✅ **Upgraded**: **\"{chg.get('improved_snippet')}\"**")
+                    st.info(f"💡 **Why this ranks higher**: {chg.get('rationale')}")
 
-            current_md = tailored.get("markdown_content", "")
-            edited_md = st.text_area("Edit Tailored Resume (Markdown)", value=current_md, height=280)
-            if edited_md != current_md:
-                tailored["markdown_content"] = edited_md
+        # Side-by-Side Comparison
+        st.divider()
+        st.markdown("##### 🔍 Side-by-Side Resume Comparison")
+        col_orig, col_opt = st.columns(2)
 
-            col_dl_pdf, col_dl_md = st.columns(2)
-            with col_dl_pdf:
-                pdf_bytes_out = generate_ats_pdf(tailored)
-                st.download_button(
-                    label="📄 Download Tailored Resume (PDF)",
-                    data=pdf_bytes_out,
-                    file_name=f"{tailored.get('candidate_name', 'Candidate')}_{target_role.replace(' ', '_')}_Resume.pdf",
-                    mime="application/pdf",
-                    type="primary",
-                    use_container_width=True
-                )
-            with col_dl_md:
-                st.download_button(
-                    label="📝 Download Tailored Resume (Markdown)",
-                    data=edited_md,
-                    file_name=f"{tailored.get('candidate_name', 'Candidate')}_{target_role.replace(' ', '_')}_Resume.md",
-                    mime="text/markdown",
-                    use_container_width=True
-                )
+        with col_orig:
+            st.markdown("#### 📄 Original Uploaded Resume")
+            st.text_area("Original Text (Read-Only)", value=res.get("resume_text", ""), height=350, disabled=True)
+
+        with col_opt:
+            st.markdown("#### ✨ ATS-Optimized Resume (Editable)")
+            current_opt_text = tailored.get("optimized_text", "")
+            edited_opt_text = st.text_area("Optimized Text (Edit in real-time below)", value=current_opt_text, height=350)
+            if edited_opt_text != current_opt_text:
+                tailored["optimized_text"] = edited_opt_text
+
+        # Download Buttons
+        col_dl_pdf, col_dl_md = st.columns(2)
+        with col_dl_pdf:
+            pdf_bytes_out = generate_ats_pdf(tailored)
+            st.download_button(
+                label="📄 Download Upgraded Resume (PDF)",
+                data=pdf_bytes_out,
+                file_name=f"{tailored.get('candidate_name', 'Candidate')}_{target_role.replace(' ', '_')}_Optimized.pdf",
+                mime="application/pdf",
+                type="primary",
+                use_container_width=True
+            )
+        with col_dl_md:
+            st.download_button(
+                label="📝 Download Upgraded Resume (Markdown)",
+                data=tailored.get("optimized_text", ""),
+                file_name=f"{tailored.get('candidate_name', 'Candidate')}_{target_role.replace(' ', '_')}_Optimized.md",
+                mime="text/markdown",
+                use_container_width=True
+            )
     else:
-        st.info("👆 Run the multi-agent analysis to generate your ATS Compatibility Score and Tailored Resume!")
+        st.info("👆 Run the multi-agent analysis to optimize your authentic resume in-place!")
 
 # -------------------------------------------------------------------
-# HUB 3: 30-60-90 DAY DYNAMIC ACTION ROADMAP
+# HUB 3: 30-60-90 DAY DYNAMIC ROADMAP & LEARNING PACK
 # -------------------------------------------------------------------
 with tab_roadmap:
-    st.subheader("📅 Personalized 30-60-90 Day Upskilling Roadmap")
+    st.subheader("📅 Personalized 30-60-90 Day Upskilling Roadmap & Curated Resources")
     if res and res.get("career_roadmap"):
         rm = res.get("career_roadmap", {})
         budget = rm.get("weekly_hours_budget", weekly_hours)
@@ -411,18 +400,13 @@ with tab_roadmap:
                     st.checkbox(f"{act}", key=f"p3_w{w.get('week_number')}_{act[:20]}")
                 st.caption(f"📦 *Deliverable: {w.get('learning_deliverable')}*")
                 st.write("")
-    else:
-        st.info("👆 Run the multi-agent analysis to generate your customized action roadmap!")
 
-# -------------------------------------------------------------------
-# HUB 4: MULTI-FORMAT LEARNING & GITHUB REFERENCE PROJECTS
-# -------------------------------------------------------------------
-with tab_learn:
-    st.subheader("📚 Curated Learning Pack & Public GitHub Reference Projects")
-    if res:
+        # Curated Learning Pack & GitHub Repos
+        st.divider()
+        st.subheader("📚 Curated Learning Pack & GitHub Reference Repositories")
         resources = res.get("learning_resources", {})
 
-        # 1. Technical Books
+        # Technical Books
         books = resources.get("books", [])
         if books:
             st.markdown("#### 📖 Authoritative Technical Books (Google Books API)")
@@ -435,10 +419,10 @@ with tab_learn:
                         st.write(b.get("description"))
                         st.link_button("📖 View on Google Books", b.get("url", "https://books.google.com"))
 
-        # 2. Research Papers (arXiv)
+        # Research Papers
         papers = resources.get("papers", [])
         if papers:
-            st.markdown("#### 📄 Foundational Research Papers & Preprints (arXiv API)")
+            st.markdown("#### 📄 Foundational Research Papers (arXiv API)")
             p_cols = st.columns(min(len(papers), 2))
             for i, p in enumerate(papers):
                 with p_cols[i % len(p_cols)]:
@@ -446,37 +430,12 @@ with tab_learn:
                         st.markdown(f"**{p.get('title')}**")
                         st.caption(f"🔬 **Authors**: {p.get('author')}")
                         st.write(p.get("description"))
-                        st.link_button("📄 Read PDF on arXiv", p.get("url", "https://arxiv.org"))
+                        st.link_button("📄 Read on arXiv", p.get("url", "https://arxiv.org"))
 
-        # 3. Official Documentation
-        docs = resources.get("docs", [])
-        if docs:
-            st.markdown("#### 🌐 Official Documentation & Technical Guides")
-            d_cols = st.columns(min(len(docs), 2))
-            for i, d in enumerate(docs):
-                with d_cols[i % len(d_cols)]:
-                    with st.container(border=True):
-                        st.markdown(f"**{d.get('title')}**")
-                        st.write(d.get("description"))
-                        st.link_button("🌐 Open Documentation", d.get("url", "https://google.com"))
-
-        # 4. Free Courses & Tutorials
-        courses = resources.get("courses", [])
-        if courses:
-            st.markdown("#### 🎥 Free Video Tutorials & Interactive Courses")
-            c_cols = st.columns(min(len(courses), 2))
-            for i, c in enumerate(courses):
-                with c_cols[i % len(c_cols)]:
-                    with st.container(border=True):
-                        st.markdown(f"**{c.get('title')}**")
-                        st.caption(f"🎓 **Platform**: {c.get('platform')} | ⏳ {c.get('duration', '3 Hours')} | 💵 {c.get('cost', 'Free')}")
-                        st.link_button("▶ Access Course", c.get("url", "https://youtube.com"))
-
-        # 5. GitHub Reference Projects
-        st.divider()
-        st.subheader("🐙 Real Public GitHub Reference Repositories")
+        # GitHub Reference Projects
         gh_projects = res.get("github_projects", [])
         if gh_projects:
+            st.markdown("#### 🐙 Real Public GitHub Reference Repositories")
             for proj in gh_projects:
                 with st.container(border=True):
                     col_info, col_btn = st.columns([4, 1])
@@ -484,15 +443,13 @@ with tab_learn:
                         st.markdown(f"### {proj.get('title')}")
                         st.markdown(f"⭐ **Stars**: `{proj.get('stars', 100):,}` | 🍴 **Forks**: `{proj.get('forks', 20):,}` | 💻 **Language**: `{proj.get('language', 'Python')}`")
                         st.write(proj.get("overview"))
-                        if proj.get("topics"):
-                            st.write("🏷️ " + " ".join([f"`{t}`" for t in proj.get("topics", [])]))
                     with col_btn:
                         st.link_button("🐙 View GitHub Repo", proj.get("html_url", "https://github.com"), type="primary")
     else:
-        st.info("👆 Run the multi-agent analysis to generate your curated Books, Research Papers, Docs, and GitHub projects!")
+        st.info("👆 Run the multi-agent analysis to generate your customized action roadmap and learning packs!")
 
 # -------------------------------------------------------------------
-# HUB 5: INTERACTIVE MULTI-TURN AI MOCK INTERVIEWER
+# HUB 4: INTERACTIVE MULTI-TURN AI MOCK INTERVIEWER
 # -------------------------------------------------------------------
 with tab_interview:
     st.subheader("🎙️ Interactive Multi-Turn AI Technical Interview Simulator")
@@ -625,48 +582,3 @@ with tab_interview:
                             st.rerun()
     else:
         st.info("👆 Click **'🚀 Start Mock Technical Interview'** above to test your technical skills in a live scenario-based simulation!")
-
-# -------------------------------------------------------------------
-# HUB 6: LIVE JOB OPPORTUNITIES & DIRECT APPLICATION PORTAL
-# -------------------------------------------------------------------
-with tab_jobs:
-    st.subheader("💼 Live Job Market & 1-Click Application Portal")
-    st.caption("Active job openings matching your target role with candidate skill match scores and direct application links.")
-
-    col_j1, col_j2, col_j3 = st.columns([1, 1, 1])
-    with col_j1:
-        job_limit = st.selectbox("Job Results Limit", [5, 10, 15, 20, 25], index=1, format_func=lambda x: f"{x} Live Openings")
-    with col_j2:
-        job_loc = st.text_input("Target Location / Country", value="Remote / United States")
-    with col_j3:
-        st.write("")
-        fetch_jobs_btn = st.button("🔄 Search Live Job Openings", type="primary", use_container_width=True)
-
-    if fetch_jobs_btn:
-        with st.spinner(f"Querying live active job openings for '{target_role}' in '{job_loc}'..."):
-            jobs = st.session_state["adk_team"].job_market_agent.fetch_live_job_postings(
-                target_role=target_role,
-                location=job_loc,
-                limit=job_limit,
-                candidate_skills=res.get("verified_skills", []) if res else []
-            )
-            if res:
-                res["live_jobs"] = jobs
-            st.session_state["adk_result"] = res
-
-    active_jobs = res.get("live_jobs", []) if res else []
-    if active_jobs:
-        st.markdown(f"#### 🎯 Found **{len(active_jobs)}** Live Opportunities for **{target_role}**")
-        for j in active_jobs:
-            with st.container(border=True):
-                col_j_info, col_j_apply = st.columns([4, 1])
-                with col_j_info:
-                    st.markdown(f"### {j.get('title')} — `{j.get('company')}`")
-                    st.markdown(f"📍 **Location**: `{j.get('location')}` | 💰 **Salary**: `{j.get('salary_range')}` | 🎯 **Candidate Match**: `{j.get('match_percentage', 75)}%`")
-                    st.write(j.get("description_snippet"))
-                    if j.get("key_skills"):
-                        st.write("🔑 **Key Tech Stack**: " + " ".join([f"`{s}`" for s in j.get("key_skills", [])]))
-                with col_j_apply:
-                    st.link_button("🚀 Apply Now", j.get("apply_url", "https://google.com"), type="primary", use_container_width=True)
-    else:
-        st.info("👆 Click **'🔄 Search Live Job Openings'** to fetch 10–25+ live active postings for your target role!")

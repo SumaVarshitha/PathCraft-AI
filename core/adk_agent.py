@@ -45,11 +45,13 @@ class ADKAgent:
 
     def execute(self, prompt_input: Union[str, List[Any]], system_context: str = "") -> Any:
         """Executes the ADK Agent using Gemini 2.5 with configured tools and output schemas."""
-        if not self.client:
-            api_key = os.getenv("GOOGLE_API_KEY") or config.GOOGLE_API_KEY
-            if not api_key:
-                raise ValueError(f"GOOGLE_API_KEY missing for ADK 2.0 Agent '{self.name}'")
+        # Always check and refresh client if API key is provided
+        api_key = os.getenv("GOOGLE_API_KEY") or config.GOOGLE_API_KEY
+        if api_key:
             self.client = genai.Client(api_key=api_key)
+
+        if not self.client:
+            raise ValueError(f"⚠️ GOOGLE_API_KEY missing for ADK 2.0 Agent '{self.name}'. Please configure your Google Gemini API Key.")
 
         full_contents = []
         
@@ -104,7 +106,6 @@ class ADKAgent:
         except Exception as e:
             print(f"[ADK 2.0 Agent Error] '{self.name}': {e}")
             raise e
-
 
 class ADKRunner:
     """
