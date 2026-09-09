@@ -43,6 +43,8 @@ class SkillGapResult(BaseModel):
     match_percentage: float = Field(description="Overall weighted candidate profile match score from 0.0 to 100.0")
     core_match_percentage: float = Field(default=0.0, description="Match score on core must-have skills")
     semantic_matches: List[SemanticMatchItem] = Field(default_factory=list, description="Granular semantic matching breakdown for each required skill")
+    candidate_superpowers: List[str] = Field(default_factory=list, description="Cutting-edge candidate strengths that exceed baseline role requirements (e.g. LangGraph, RAG, Multi-Agent Systems)")
+    suggested_alternate_roles: List[Dict[str, Any]] = Field(default_factory=list, description="High-match alternate job titles where candidate has exceptional synergy")
     analysis_method: str = Field(default="Live 2026 Market Search Grounding & Gemini Embeddings", description="Method used to fetch and evaluate requirements")
 
 class EvaluationResult(BaseModel):
@@ -57,16 +59,6 @@ class InterviewTurn(BaseModel):
     question: str = Field(description="Question asked by interviewer")
     candidate_answer: Optional[str] = Field(default="", description="Candidate submitted response")
     evaluation: Optional[EvaluationResult] = Field(default=None, description="Detailed score and feedback")
-
-class JobPosting(BaseModel):
-    title: str = Field(description="Job title")
-    company: str = Field(description="Hiring company name")
-    location: str = Field(description="Location or Remote status")
-    salary_range: Optional[str] = Field(default="Competitive / Market Standard", description="Estimated salary range")
-    key_skills: List[str] = Field(default_factory=list, description="Key skills requested in job posting")
-    match_percentage: float = Field(default=0.0, description="Match percentage against candidate verified skills")
-    apply_url: str = Field(description="Direct URL to view or apply for the job posting")
-    description_snippet: Optional[str] = Field(default="", description="Short snippet of job requirements")
 
 class ADKState(TypedDict):
     resume_bytes: Optional[bytes]
@@ -86,6 +78,8 @@ class ADKState(TypedDict):
     skills_gap: List[str]
     core_skills: List[str]
     differentiator_skills: List[str]
+    candidate_superpowers: List[str]
+    suggested_alternate_roles: List[Dict[str, Any]]
     match_score: float
     core_match_score: float
     analysis_method: str

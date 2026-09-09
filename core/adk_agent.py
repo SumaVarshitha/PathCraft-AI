@@ -1,9 +1,11 @@
 """
 Google ADK 2.0 (Agent Development Kit 2.0) Core Engine
-Provides native Google ADK 2.0 Agent, Tool, Runner, and State abstractions powered by Gemini 2.5 models.
+Provides native Google ADK 2.0 Agent, Tool, Runner, and State abstractions powered by Gemini models
+with automated retry, rate-limit backoff, and multi-model failover resilience.
 """
 
 import os
+import time
 import json
 from typing import Dict, Any, List, Optional, Type, Union
 from google import genai
@@ -21,8 +23,9 @@ class ADKTool:
 class ADKAgent:
     """
     Google ADK 2.0 Agent Class
-    Encapsulates an autonomous agent powered by Gemini 2.5 models with instruction,
-    tools (e.g. Google Search Grounding), and structured output schemas.
+    Encapsulates an autonomous agent powered by Gemini models with instruction,
+    tools (e.g. Google Search Grounding), structured output schemas,
+    and automatic failover across model tiers when 503 / 429 errors occur.
     """
     def __init__(
         self,
@@ -44,8 +47,9 @@ class ADKAgent:
         self.client = genai.Client(api_key=api_key) if api_key else None
 
     def execute(self, prompt_input: Union[str, List[Any]], system_context: str = "") -> Any:
-        """Executes the ADK Agent using Gemini 2.5 with configured tools and output schemas."""
-        # Always check and refresh client if API key is provided
+        """
+        Executes the ADK Agent with automated retry and multi-model fallback on 503 / 429 errors.
+        """
         api_key = os.getenv("GOOGLE_API_KEY") or config.GOOGLE_API_KEY
         if api_key:
             self.client = genai.Client(api_key=api_key)
@@ -54,8 +58,6 @@ class ADKAgent:
             raise ValueError(f"⚠️ GOOGLE_API_KEY missing for ADK 2.0 Agent '{self.name}'. Please configure your Google Gemini API Key.")
 
         full_contents = []
-        
-        # Add system context if provided
         combined_instruction = f"{self.instruction}\n\n{system_context}".strip()
         full_contents.append(combined_instruction)
         
@@ -69,10 +71,8 @@ class ADKAgent:
             temperature=self.temperature
         )
 
-        # Bind Output Schema if configured
         if self.output_schema:
             gen_config.response_mime_type = "application/json"
-            gen_config.response_schema = self.output_schema
 
         # Bind Tools if configured (e.g. Search Grounding)
         genai_tools = []
@@ -82,30 +82,53 @@ class ADKAgent:
         if genai_tools:
             gen_config.tools = genai_tools
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=full_contents,
-                config=gen_config
-            )
-            
-            # If structured schema, parse JSON
-            if self.output_schema:
-                try:
-                    return json.loads(response.text)
-                except Exception:
-                    text = response.text.strip()
-                    if "```json" in text:
-                        text = text.split("```json")[-1].split("```")[0].strip()
-                    elif "```" in text:
-                        text = text.split("```")[1].split("```")[0].strip()
-                    return json.loads(text)
-            
-            return response.text.strip()
+        # Candidate models to try in order of preference
+        models_to_try = [self.model]
+        for fallback in config.FALLBACK_MODELS:
+            if fallback not in models_to_try:
+                models_to_try.append(fallback)
 
-        except Exception as e:
-            print(f"[ADK 2.0 Agent Error] '{self.name}': {e}")
-            raise e
+        last_error = None
+
+        for model_candidate in models_to_try:
+            # Try up to 2 attempts per model with short backoff
+            for attempt in range(2):
+                try:
+                    response = self.client.models.generate_content(
+                        model=model_candidate,
+                        contents=full_contents,
+                        config=gen_config
+                    )
+                    
+                    # If structured schema requested, parse JSON safely
+                    if self.output_schema:
+                        text = response.text.strip()
+                        if "```json" in text:
+                            text = text.split("```json")[-1].split("```")[0].strip()
+                        elif "```" in text:
+                            text = text.split("```")[1].split("```")[0].strip()
+                        if "{" in text and "}" in text:
+                            text = text[text.find("{"):text.rfind("}")+1]
+                        return json.loads(text)
+                    
+                    return response.text.strip()
+
+                except Exception as e:
+                    err_str = str(e)
+                    last_error = e
+                    # Check for 503 (High Demand / Unavailable) or 429 (Rate Limit / Quota)
+                    is_transient = "503" in err_str or "429" in err_str or "UNAVAILABLE" in err_str or "RESOURCE_EXHAUSTED" in err_str or "demand" in err_str.lower()
+                    
+                    if is_transient:
+                        print(f"[ADK Resilience Notice] Model '{model_candidate}' experienced transient spike (attempt {attempt+1}/2). Backing off...", flush=True)
+                        time.sleep(1.5 * (attempt + 1))
+                        continue
+                    else:
+                        # Non-transient error, try next model candidate
+                        break
+
+        print(f"[ADK 2.0 Agent Error] '{self.name}' across all model tiers: {last_error}", flush=True)
+        raise last_error
 
 class ADKRunner:
     """

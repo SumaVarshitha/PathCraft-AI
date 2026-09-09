@@ -18,7 +18,7 @@ class CareerCopilotADKTeam:
     1. ResumeParserADKAgent (Deep PDF/Text Ingestion + Work Bullets + Projects + Certifications + LinkedIn)
     2. GitHubInspectorADKAgent (Candidate GitHub profiling via GitHub MCP)
     3. SkillNormalizerADKAgent (Token-exact normalization & deduplication)
-    4. GapAnalyzerADKAgent (Dynamic 2-Tier 70/30 Weighted Live Market Search Grounding)
+    4. GapAnalyzerADKAgent (Dynamic 2-Tier 70/30 Weighted Live Market Search Grounding + Superpower Detection)
     5. ATSAnalyzerADKAgent (100-pt ATS Resume Compatibility Audit)
     6. ResumeGeneratorADKAgent (Authentic In-Place Resume Optimizer on Original Text)
     7. RoadmapADKAgent (Personalized 30-60-90 Day Upskilling Roadmap by Weekly Budget)
@@ -85,7 +85,7 @@ class CareerCopilotADKTeam:
         target_role = state.get("target_role", "Data Engineer")
         seniority_level = state.get("seniority_level", "Mid-Senior")
 
-        # 2. Dynamic 2-Tier Semantic Skill Gap Analysis
+        # 2. Dynamic 2-Tier Semantic Skill Gap Analysis + Superpower Detection
         gap_result = self.gap_analyzer.analyze(
             candidate_skills=active_skills,
             target_role=target_role,
@@ -99,6 +99,8 @@ class CareerCopilotADKTeam:
         state["skills_gap"] = gap_result.get("missing_skills", [])
         state["core_skills"] = gap_result.get("core_requirements", [])
         state["differentiator_skills"] = gap_result.get("differentiator_requirements", [])
+        state["candidate_superpowers"] = gap_result.get("candidate_superpowers", [])
+        state["suggested_alternate_roles"] = gap_result.get("suggested_alternate_roles", [])
         state["match_score"] = gap_result.get("match_percentage", 0.0)
         state["core_match_score"] = gap_result.get("core_match_percentage", 0.0)
         state["analysis_method"] = gap_result.get("analysis_method", "Live 2026 Market Search Grounding")

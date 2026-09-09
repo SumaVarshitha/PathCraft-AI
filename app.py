@@ -47,7 +47,13 @@ st.sidebar.divider()
 st.sidebar.subheader("📄 1-Click Benchmark Resumes")
 sample_choice = st.sidebar.selectbox(
     "Load Benchmark Profile:",
-    ["-- Custom Candidate Profile --", "1. Senior Data Engineer (Strong Match)", "2. AI / ML Engineer (Strong Match)", "3. Fullstack Web Developer", "4. UI/UX Designer (Weak Data Match)"]
+    [
+        "-- Custom Candidate Profile --", 
+        "1. Senior Data Engineer (Strong Match)", 
+        "2. AI / ML Engineer (Strong Match)", 
+        "3. Fullstack Web Developer", 
+        "4. UI/UX Designer (Weak Data Match)"
+    ]
 )
 
 # Main Input Form
@@ -57,33 +63,32 @@ col_role, col_input = st.columns([1, 1])
 with col_role:
     default_role_idx = 0
     if "AI / ML" in sample_choice:
-        default_role_idx = 2
+        default_role_idx = 1
     elif "Fullstack" in sample_choice:
-        default_role_idx = 4
+        default_role_idx = 5
     elif "Data Engineer" in sample_choice:
-        default_role_idx = 0
+        default_role_idx = 2
 
     selected_role = st.selectbox(
         "Target Career Job Role",
         [
+            "GenAI / LLM Systems Engineer",
+            "AI Agent & Multi-Agent Systems Architect",
             "Data Engineer", 
-            "Backend Engineer", 
+            "Data & AI Platform Engineer",
             "AI/ML Engineer", 
-            "Frontend Engineer",
+            "Backend & Cloud Systems Engineer",
             "Fullstack Engineer",
             "DevOps / SRE Engineer",
             "Cloud Solutions Architect",
             "Data Scientist",
             "MLOps Engineer",
-            "Mobile App Developer",
-            "Cybersecurity Engineer",
-            "Database Administrator",
             "Custom Role (Type Below)"
         ],
         index=default_role_idx
     )
     if selected_role == "Custom Role (Type Below)":
-        target_role = st.text_input("Type Your Custom Target Role", placeholder="e.g. LLM Systems Engineer, Robotics Developer")
+        target_role = st.text_input("Type Your Custom Target Role", placeholder="e.g. Autonomous AI Agent Developer, Robotics Systems Engineer")
     else:
         target_role = selected_role
 
@@ -142,7 +147,7 @@ if step_parse_btn or run_pipeline:
             initial_state = {
                 "resume_bytes": resume_bytes,
                 "resume_text": resume_text,
-                "target_role": target_role if target_role else "Data Engineer",
+                "target_role": target_role if target_role else "GenAI / LLM Systems Engineer",
                 "seniority_level": seniority_level,
                 "github_url": github_url if github_url else None,
                 "linkedin_url": None,
@@ -157,6 +162,8 @@ if step_parse_btn or run_pipeline:
                 "skills_gap": [],
                 "core_skills": [],
                 "differentiator_skills": [],
+                "candidate_superpowers": [],
+                "suggested_alternate_roles": [],
                 "match_score": 0.0,
                 "core_match_score": 0.0,
                 "analysis_method": "",
@@ -185,7 +192,7 @@ st.divider()
 # FOCUSED 4-HUB INTERACTIVE WORKSPACE
 # -------------------------------------------------------------------
 tab_diag, tab_resume, tab_roadmap, tab_interview = st.tabs([
-    "📊 1. Skill Gap Diagnostic (HITL)",
+    "📊 1. Skill Gap Diagnostic & Superpowers",
     "✍️ 2. In-Place Resume Optimizer",
     "📅 3. Dynamic Roadmap & Learning Pack",
     "🎙️ 4. AI Mock Interview Hub"
@@ -194,11 +201,26 @@ tab_diag, tab_resume, tab_roadmap, tab_interview = st.tabs([
 res = st.session_state["adk_result"]
 
 # -------------------------------------------------------------------
-# HUB 1: DIAGNOSTIC & HUMAN-IN-THE-LOOP SKILL VERIFICATION
+# HUB 1: DIAGNOSTIC, SUPERPOWERS & HITL SKILL VERIFICATION
 # -------------------------------------------------------------------
 with tab_diag:
-    st.subheader("📊 Dynamic Semantic Skill Gap Diagnostic & Profile Verification")
+    st.subheader("📊 Dynamic Semantic Skill Gap Diagnostic & Candidate Superpowers")
     if res:
+        # Superpowers Banner
+        superpowers = res.get("candidate_superpowers", [])
+        if superpowers:
+            with st.container(border=True):
+                st.markdown("### 🌟 Candidate Superpowers & Standout Capabilities")
+                st.caption("Advanced competencies detected in your projects and work experience that exceed standard baseline requirements:")
+                st.write(" ".join([f"✨ **`{sp}`**" for sp in superpowers]))
+                
+                alt_roles = res.get("suggested_alternate_roles", [])
+                if alt_roles:
+                    st.divider()
+                    st.markdown("##### 💡 High-Synergy Alternate Roles For Your Background:")
+                    for ar in alt_roles:
+                        st.info(f"🎯 **{ar.get('role')}** (Est. Match: `{ar.get('estimated_match')}`): {ar.get('rationale')}")
+
         # HITL Candidate Skill Editor
         with st.expander("👤 Human-in-the-Loop: Candidate Verified Skills Editor", expanded=not res.get("match_score")):
             st.markdown("Review the skills extracted from your resume, projects, and GitHub. You can add or remove skills to refine the analysis.")
@@ -206,7 +228,7 @@ with tab_diag:
             
             col_add, col_sel = st.columns([1, 2])
             with col_add:
-                new_skill = st.text_input("Add Unlisted Skill", placeholder="e.g. Terraform, FastAPI, dbt")
+                new_skill = st.text_input("Add Unlisted Skill", placeholder="e.g. LangGraph, RAG, FastAPI, dbt")
                 if st.button("➕ Add Skill"):
                     if new_skill and new_skill.strip() not in current_skills:
                         current_skills.append(new_skill.strip())
@@ -457,7 +479,7 @@ with tab_interview:
 
     missing_skills = res.get("skills_gap", []) if res else []
     verified_skills = res.get("verified_skills", []) if res else []
-    active_role = target_role if target_role else "Data Engineer"
+    active_role = target_role if target_role else "GenAI / LLM Systems Engineer"
 
     # Interview Configuration
     col_ic1, col_ic2, col_ic3 = st.columns(3)
