@@ -34,10 +34,16 @@ if "current_question_data" not in st.session_state:
 if "interview_finished" not in st.session_state:
     st.session_state["interview_finished"] = False
 
+
+
+# App Header
+st.title("🚀 PathCraft AI - Enterprise Career & Skill Intelligence")
+st.markdown("**Autonomous Multi-Agent Career Platform powered by Google ADK 2.0, Gemini 2.5 Flash, Dynamic Search Grounding & MCP Tools**")
+
 # One‑time onboarding banner (shows only on first load)
 if "onboard_shown" not in st.session_state:
     st.info(
-        "👋 Welcome! Upload a resume, add your GitHub profile URL, select a target role and seniority level, then click **Launch PathCraft AI Multi‑Agent Pipeline**. The four hubs will populate automatically."
+        "👋 Welcome to PathCraft AI! To begin, simply upload your resume (PDF or paste the text), provide your public GitHub profile URL, choose the target job role and seniority level you’re aiming for, and finally click **Launch PathCraft AI Multi‑Agent Pipeline**. Once the pipeline finishes, the four interactive hubs will appear below, guiding you through skill‑gap analysis, resume optimisation, a personalised learning roadmap, and a mock interview."
     )
     st.session_state["onboard_shown"] = True
 
@@ -45,22 +51,25 @@ if "onboard_shown" not in st.session_state:
 with st.expander("❓ How to use PathCraft AI (quick guide)"):
     st.markdown(
         """
-        1. **Upload / paste** your resume.
-        2. **Add** your public GitHub URL.
-        3. **Select** target role & seniority.
-        4. **Press** **Launch PathCraft AI Multi‑Agent Pipeline**.
-        5. Explore the four hubs:
-           - 📊 **Skill Gap Diagnostic** – core vs. differentiator scores.
-           - ✍️ **Resume Optimizer** – ATS score boost & PDF export.
-           - 📅 **30‑60‑90 Roadmap** – study‑budget slider & curated resources.
-           - 🎙️ **Mock Interview** – AI‑generated questions & instant rubric.
+        **Step‑by‑Step Guide**
+
+        1. **Select a benchmark resume or upload your own** – In the sidebar you can pick a ready‑made benchmark profile (e.g., Senior Data Engineer). If you prefer a custom resume, upload a PDF or paste the full text into the textarea. The system will extract your work history, projects, and achievements.
+
+        2. **Provide your GitHub profile URL** – Enter the URL of a public GitHub account (or just the username). PathCraft AI will pull repository statistics, programming languages, and contribution metrics as additional evidence of your technical expertise.
+
+        3. **Select your target role and seniority** – Choose the exact job title you aim for (e.g., *Data Engineer*, *AI/ML Engineer*) and the seniority level (Junior, Mid‑Level, Senior, etc.). This informs the agents which market requirements to benchmark against.
+
+        4. **Launch the multi‑agent pipeline** – Click **Launch PathCraft AI Multi‑Agent Pipeline**. This triggers ten autonomous agents that will analyse your profile, identify skill gaps, optimise your resume, generate a personalised learning roadmap, and even run a mock interview.
+
+        5. **Explore the four interactive hubs** – Once the pipeline completes, the following hubs appear:
+           - 📊 **Skill Gap Diagnostic** – Detailed comparison of core versus differentiator skills.
+           - ✍️ **Resume Optimiser** – ATS‑score improvements with side‑by‑side diff and PDF export.
+           - 📅 **30‑60‑Day Roadmap** – Adaptive learning plan with resource recommendations.
+           - 🎙️ **Mock Interview** – AI‑generated technical questions with instant feedback.
         """
     )
 
 
-# App Header
-st.title("🚀 PathCraft AI - Enterprise Career & Skill Intelligence")
-st.markdown("**Autonomous Multi-Agent Career Platform powered by Google ADK 2.0, Gemini 2.5 Flash, Dynamic Search Grounding & MCP Tools**")
 
 # Sidebar Configuration
 st.sidebar.header("🔑 Google ADK 2.0 Engine Settings")
@@ -78,6 +87,8 @@ elif os.getenv("GOOGLE_API_KEY"):
     st.sidebar.info("⚡ Using Default System API Key")
 else:
     st.sidebar.warning("⚠️ Enter a `GOOGLE_API_KEY` to enable Live Search Grounding & Gemini Embeddings.")
+
+
 
 
 # Benchmark Profiles Selector in Sidebar
