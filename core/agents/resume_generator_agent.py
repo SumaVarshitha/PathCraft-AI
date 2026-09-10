@@ -147,9 +147,7 @@ class ResumeGeneratorADKAgent(ADKAgent):
 
 def _clean_xml_text(text: str) -> str:
     """Escapes raw XML special characters and converts basic markdown formatting to valid ReportLab XML."""
-    # First escape XML special entities safely
     s = html.escape(text)
-    # Convert escaped markdown tags back to valid ReportLab XML tags
     s = _re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', s)
     s = _re.sub(r'__(.*?)__', r'<b>\1</b>', s)
     s = _re.sub(r'\*(.*?)\*', r'<i>\1</i>', s)
@@ -160,16 +158,17 @@ def _clean_xml_text(text: str) -> str:
 
 def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
     """
-    Generates an executive-standard, beautifully styled PDF matching top corporate ATS templates:
-    - Clean typography hierarchy (Navy headings, slate subheaders, dark charcoal body)
-    - Full-width subtle section divider rules
-    - Formatted contact information bar
-    - Properly indented and bulleted achievement statements
-    - Compatible with automated ATS parsing engines (Workday, Greenhouse, Lever, Taleo)
+    Generates a modern, executive-styled ATS-compliant PDF:
+    - Executive typography with Navy/Slate primary palette (#0F172A, #1E3A8A, #0284C7)
+    - Distinctive full-width header block with candidate name, target role headline, contact bar
+    - Section headers with accent rules and clean divider bars
+    - 2-Column structured job headers (Title | Company on left, Dates / Location on right)
+    - Cleanly formatted bullet points with Google XYZ impact highlights
+    - Fully compatible with ATS parsers (Workday, Greenhouse, Lever, Taleo)
     """
     try:
         from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
 
@@ -187,48 +186,55 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
 
         name_style = ParagraphStyle(
             'ExecutiveName', parent=styles['Heading1'],
-            fontName='Helvetica-Bold', fontSize=18, leading=22,
-            textColor=colors.HexColor('#0F172A'), spaceAfter=2, spaceBefore=0,
-            alignment=0  # Left aligned
+            fontName='Helvetica-Bold', fontSize=20, leading=24,
+            textColor=colors.HexColor('#0F172A'), spaceAfter=2, spaceBefore=0
+        )
+        headline_style = ParagraphStyle(
+            'TargetRoleHeadline', parent=styles['Normal'],
+            fontName='Helvetica-Bold', fontSize=10.5, leading=14,
+            textColor=colors.HexColor('#0284C7'), spaceAfter=3
         )
         contact_style = ParagraphStyle(
             'ContactBar', parent=styles['Normal'],
             fontName='Helvetica', fontSize=8.5, leading=12,
-            textColor=colors.HexColor('#475569'), spaceAfter=6
+            textColor=colors.HexColor('#475569'), spaceAfter=4
         )
         section_style = ParagraphStyle(
             'SectionHeader', parent=styles['Heading2'],
             fontName='Helvetica-Bold', fontSize=11, leading=14,
             textColor=colors.HexColor('#1E3A8A'), spaceBefore=8, spaceAfter=2
         )
-        role_company_style = ParagraphStyle(
-            'RoleCompany', parent=styles['Normal'],
-            fontName='Helvetica-Bold', fontSize=10, leading=13,
-            textColor=colors.HexColor('#0F172A'), spaceBefore=4, spaceAfter=1
+        job_left_style = ParagraphStyle(
+            'JobLeft', parent=styles['Normal'],
+            fontName='Helvetica-Bold', fontSize=9.5, leading=13,
+            textColor=colors.HexColor('#0F172A')
         )
-        duration_style = ParagraphStyle(
-            'DurationStyle', parent=styles['Normal'],
-            fontName='Helvetica-Oblique', fontSize=9, leading=12,
-            textColor=colors.HexColor('#64748B'), spaceAfter=2
+        job_right_style = ParagraphStyle(
+            'JobRight', parent=styles['Normal'],
+            fontName='Helvetica-Oblique', fontSize=8.5, leading=13,
+            textColor=colors.HexColor('#64748B'), alignment=2  # Right-aligned
         )
         bullet_style = ParagraphStyle(
             'ExecutiveBullet', parent=styles['Normal'],
-            fontName='Helvetica', fontSize=9, leading=13,
-            textColor=colors.HexColor('#1E293B'), leftIndent=12, spaceAfter=2
+            fontName='Helvetica', fontSize=8.8, leading=12.5,
+            textColor=colors.HexColor('#1E293B'), leftIndent=12, spaceAfter=2.5
         )
         body_style = ParagraphStyle(
             'ExecutiveBody', parent=styles['Normal'],
-            fontName='Helvetica', fontSize=9, leading=13,
+            fontName='Helvetica', fontSize=8.8, leading=12.5,
+            textColor=colors.HexColor('#1E293B'), spaceAfter=2.5
+        )
+        skill_category_style = ParagraphStyle(
+            'SkillCategory', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=8.8, leading=12.5,
             textColor=colors.HexColor('#1E293B'), spaceAfter=2
         )
 
         def make_paragraph(raw_text: str, style):
-            """Safely creates a Paragraph flowable, handling XML exceptions gracefully."""
             formatted = _clean_xml_text(raw_text)
             try:
                 return Paragraph(formatted, style)
             except Exception:
-                # Strip all XML/HTML tags if ReportLab parser fails and use clean plain text
                 plain = html.escape(_re.sub(r'<[^>]*>', '', raw_text))
                 return Paragraph(plain, style)
 
@@ -241,7 +247,7 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
             doc.build(story)
             return buffer.getvalue()
 
-        # Check for Candidate Name in line 0 or # header
+        # Extract Candidate Name and Contact Information
         first_line = lines[0]
         if first_line.startswith("# "):
             cand_name = first_line[2:].strip()
@@ -252,52 +258,76 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
         else:
             cand_name = tailored_data.get("candidate_name", "Candidate")
 
-        # Add Name Banner
-        story.append(make_paragraph(cand_name.upper(), name_style))
+        target_role = tailored_data.get("target_role", "").strip()
 
-        # Check if next line is Contact Info (contains @ or | or http)
-        if lines and any(c in lines[0] for c in ["@", "http", "|", "+91", ".com"]):
+        # Header Block
+        story.append(make_paragraph(cand_name.upper(), name_style))
+        if target_role:
+            story.append(make_paragraph(f"{target_role.upper()} &nbsp;|&nbsp; PROFESSIONAL PROFILE", headline_style))
+
+        # Check for Contact Info line
+        contact_line = ""
+        if lines and any(c in lines[0] for c in ["@", "http", "|", "+", ".com"]):
             contact_line = lines[0]
-            story.append(make_paragraph(contact_line, contact_style))
             lines = lines[1:]
 
-        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1E3A8A'), spaceAfter=6))
+        if contact_line:
+            # Clean contact line formatting
+            contact_clean = contact_line.replace("|", " • ").replace("  ", " ")
+            story.append(make_paragraph(contact_clean, contact_style))
+
+        # Modern double horizontal divider
+        story.append(HRFlowable(width="100%", thickness=1.8, color=colors.HexColor('#1E3A8A'), spaceAfter=1))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#93C5FD'), spaceAfter=6))
 
         for raw_line in lines:
             stripped = raw_line.strip()
             if not stripped:
-                story.append(Spacer(1, 3))
                 continue
 
-            # Markdown H1 / H2 or All-caps section headers (e.g., EXPERIENCE, PROJECTS, EDUCATION, SKILLS)
-            if stripped.startswith("## ") or stripped.startswith("# ") or (stripped.isupper() and len(stripped) < 35 and not any(c in stripped for c in ["|", "–", "-"])):
+            # Section Headers (e.g., SUMMARY, EXPERIENCE, PROJECTS, SKILLS, EDUCATION)
+            if stripped.startswith("## ") or stripped.startswith("# ") or (stripped.isupper() and len(stripped) < 35 and not any(c in stripped for c in ["|", "–", "-", "@"])):
                 header_text = stripped.replace("## ", "").replace("# ", "").strip()
                 story.append(Spacer(1, 4))
-                story.append(make_paragraph(header_text.upper(), section_style))
-                story.append(HRFlowable(width="100%", thickness=0.6, color=colors.HexColor('#CBD5E1'), spaceAfter=3))
+                story.append(make_paragraph(f"<b>{header_text.upper()}</b>", section_style))
+                story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor('#1E3A8A'), spaceAfter=4))
 
-            # Job Header with Pipe (e.g. Senior DevOps & AI Engineer | SAP Labs India | Sep 2023 – Present)
-            elif "|" in stripped and ("present" in stripped.lower() or any(yr in stripped for yr in ["2020", "2021", "2022", "2023", "2024", "2025", "2026"])):
+            # Job Header with Pipe (e.g. Senior Data Platform Engineer | CloudData Corp | 2022 – Present)
+            elif "|" in stripped and ("present" in stripped.lower() or any(yr in stripped for yr in ["2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026"])):
                 parts = [p.strip() for p in stripped.split("|")]
                 if len(parts) >= 2:
-                    title_comp = f"**{parts[0]}** | *{parts[1]}*"
-                    story.append(make_paragraph(title_comp, role_company_style))
-                    if len(parts) >= 3:
-                        story.append(make_paragraph(parts[2], duration_style))
+                    left_text = f"<b>{parts[0]}</b> &nbsp;<font color='#0284C7'>|</font>&nbsp; <i>{parts[1]}</i>"
+                    right_text = parts[2] if len(parts) >= 3 else ""
+                    
+                    # 2-column table for aligned job headers
+                    p_left = make_paragraph(left_text, job_left_style)
+                    p_right = make_paragraph(right_text, job_right_style)
+                    
+                    job_table = Table([[p_left, p_right]], colWidths=[380, 160])
+                    job_table.setStyle(TableStyle([
+                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                        ('LEFTPADDING', (0,0), (-1,-1), 0),
+                        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                        ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+                        ('TOPPADDING', (0,0), (-1,-1), 2),
+                    ]))
+                    story.append(job_table)
                 else:
-                    story.append(make_paragraph(stripped, role_company_style))
+                    story.append(make_paragraph(stripped, job_left_style))
 
-            # Markdown H3 / H4
+            # Sub-headers (### Project or Degree)
             elif stripped.startswith("### "):
-                story.append(make_paragraph(stripped[4:].strip(), role_company_style))
-
-            elif stripped.startswith("#### "):
-                story.append(make_paragraph(stripped[5:].strip(), duration_style))
+                content = stripped[4:].strip()
+                story.append(make_paragraph(f"<b>{content}</b>", job_left_style))
 
             # Bullet Points
             elif stripped.startswith(("- ", "• ", "* ")):
                 bullet_text = stripped[2:].strip()
-                story.append(make_paragraph(f"• {bullet_text}", bullet_style))
+                story.append(make_paragraph(f"• &nbsp;{bullet_text}", bullet_style))
+
+            # Skills Category rows
+            elif ":" in stripped and any(cat in stripped.lower() for cat in ["languages", "tools", "cloud", "frameworks", "database", "methodologies", "devops"]):
+                story.append(make_paragraph(stripped, skill_category_style))
 
             # Horizontal line
             elif stripped in ("---", "***", "___"):
@@ -311,7 +341,6 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
 
     except Exception as e:
         print(f"[PDF Generation Fallback]: ({e}). Building clean Canvas PDF.", flush=True)
-        # Fallback to direct ReportLab Canvas drawing so a valid, styled PDF binary is ALWAYS returned
         try:
             from reportlab.lib.pagesizes import letter
             from reportlab.pdfgen import canvas
@@ -321,18 +350,18 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
             y = height - 40
             
             c.setFont("Helvetica-Bold", 16)
-            c.setFillColorRGB(0.06, 0.09, 0.16) # #0F172A
+            c.setFillColorRGB(0.06, 0.09, 0.16)
             cand_name = tailored_data.get("candidate_name", "CANDIDATE RESUME").upper()
             c.drawString(36, y, cand_name)
             y -= 15
 
-            c.setStrokeColorRGB(0.12, 0.23, 0.54) # #1E3A8A
+            c.setStrokeColorRGB(0.12, 0.23, 0.54)
             c.setLineWidth(1.5)
             c.line(36, y, width - 36, y)
             y -= 20
 
             c.setFont("Helvetica", 9)
-            c.setFillColorRGB(0.12, 0.16, 0.23) # #1E293B
+            c.setFillColorRGB(0.12, 0.16, 0.23)
             
             text_out = tailored_data.get("optimized_text", "")
             for line in text_out.split("\n"):
@@ -356,6 +385,5 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
             
             c.save()
             return buffer.getvalue()
-        except Exception as inner_e:
-            print(f"[PDF Generation Canvas Emergency]: {inner_e}", flush=True)
+        except Exception:
             return (tailored_data.get("optimized_text", "")).encode("utf-8")

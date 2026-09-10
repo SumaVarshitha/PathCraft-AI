@@ -4,12 +4,12 @@ import json
 import config
 from core.orchestrator import CareerCopilotADKTeam
 from core.agents.resume_generator_agent import generate_ats_pdf
-try:
-    from test_resumes import STRONG_DATA_ENGINEER_RESUME, WEAK_DESIGNER_RESUME
-except ImportError:
-    STRONG_DATA_ENGINEER_RESUME = """Alex Chen\nSenior Data Engineer | alex.chen@example.com | San Francisco, CA | github.com/alexchen-data\n\nSUMMARY\nSenior Data Engineer with 5+ years of experience architecting petabyte-scale distributed data pipelines, lakehouse architectures, and real-time streaming infrastructure. Proficient in Python, SQL, Apache Spark, PySpark, Google Cloud BigQuery, and Airflow workflow orchestration.\n\nTECHNICAL SKILLS\n- Programming Languages: Python, SQL, Scala, Bash\n- Distributed Computing & Big Data: Apache Spark, PySpark, Apache Kafka, Hadoop\n- Cloud & Data Warehousing: Google Cloud Platform (GCP), BigQuery, Snowflake, Amazon Redshift\n- Orchestration & DevOps: Apache Airflow, Docker, Kubernetes, Terraform, Git, CI/CD\n- Data Modeling: Dimensional Modeling, Star Schema, dbt, ETL / ELT Pipeline Architecture\n\nPROFESSIONAL EXPERIENCE\nSenior Data Platform Engineer | CloudData Corp | 2022 - Present\n- Designed and deployed streaming ETL pipelines using PySpark and Kafka, ingesting 200M+ events daily into Google Cloud BigQuery with 99.9% uptime.\n- Orchestrated 45+ critical production DAGs using Apache Airflow, reducing data latency by 40%.\n- Containerized data services using Docker and managed cloud deployments via Terraform.\n\nPROJECTS\n1. Real-Time Lakehouse Streaming Ingestion Engine\n   - Built an end-to-end real-time ingestion pipeline using PySpark, Delta Lake, and BigQuery.\n   - Automated data quality assertions using dbt and Docker containers.\n   - Tech Stack: Python, PySpark, Apache Spark, BigQuery, Docker, Git.\n\nCERTIFICATIONS & EDUCATION\n- Google Cloud Certified Professional Data Engineer (GCP PDE)\n- B.S. in Computer Science, University of California, Berkeley"""
-
-    WEAK_DESIGNER_RESUME = """Jordan Miller\nUI/UX Graphic Designer | jordan.miller@example.com | New York, NY\n\nSUMMARY\nCreative Visual and UI/UX Designer with 3 years of experience crafting wireframes, brand design systems, and responsive website landing pages. Passionate about typography, user research, and interactive prototyping.\n\nSKILLS\n- Design Tools: Figma, Adobe XD, Adobe Photoshop, Adobe Illustrator, InVision\n- Web Design: HTML5, CSS3, Responsive Design, Typography, Color Theory\n- Methodologies: User Research, Wireframing, Rapid Prototyping, Usability Testing\n\nEXPERIENCE\nJunior Product Designer | CreativeStudio Agency | 2023 - Present\n- Designed high-fidelity prototypes and UI component libraries in Figma for e-commerce clients.\n- Conducted user interviews and usability testing sessions to improve app navigation.\n- Created responsive HTML/CSS landing pages for promotional marketing campaigns."""
+from test_resumes import (
+    STRONG_DATA_ENGINEER_RESUME,
+    AIML_ENGINEER_RESUME,
+    FULLSTACK_DEVELOPER_RESUME,
+    WEAK_DESIGNER_RESUME
+)
 
 
 # Page Setup
@@ -116,31 +116,39 @@ with col_role:
     linkedin_text = st.text_area("LinkedIn Profile / Achievements / Honors (Optional)", height=80, placeholder="Paste LinkedIn summary, awards, certifications, or key project accomplishments...")
 
 with col_input:
-    upload_type = st.radio("Resume Upload Format", ["Upload PDF File", "Paste Text"], horizontal=True)
+    sample_text_map = {
+        "1. Senior Data Engineer (Strong Match)": STRONG_DATA_ENGINEER_RESUME,
+        "2. AI / ML Engineer (Strong Match)": AIML_ENGINEER_RESUME,
+        "3. Fullstack Web Developer": FULLSTACK_DEVELOPER_RESUME,
+        "4. UI/UX Designer (Weak Data Match)": WEAK_DESIGNER_RESUME
+    }
+    
+    benchmark_active = sample_choice in sample_text_map
+    if benchmark_active:
+        st.success(f"📄 **Benchmark Profile Active**: `{sample_choice}`")
+        default_resume_text = sample_text_map[sample_choice].strip()
+    else:
+        default_resume_text = ""
+
+    upload_type = st.radio("Resume Upload Format", ["Paste / Edit Resume Text", "Upload PDF File"], horizontal=True)
     resume_text = ""
     resume_bytes = None
     
-    if sample_choice == "1. Senior Data Engineer (Strong Match)":
-        resume_text = STRONG_DATA_ENGINEER_RESUME
-    elif sample_choice == "2. AI / ML Engineer (Strong Match)":
-        if os.path.exists("sample_resumes/2_AIML_Engineer.pdf"):
-            with open("sample_resumes/2_AIML_Engineer.pdf", "rb") as f:
-                resume_bytes = f.read()
-    elif sample_choice == "3. Fullstack Web Developer":
-        if os.path.exists("sample_resumes/3_Fullstack_Developer.pdf"):
-            with open("sample_resumes/3_Fullstack_Developer.pdf", "rb") as f:
-                resume_bytes = f.read()
-    elif sample_choice == "4. UI/UX Designer (Weak Data Match)":
-        resume_text = WEAK_DESIGNER_RESUME
-
-    if upload_type == "Paste Text":
-        resume_text = st.text_area("Paste Resume Text (Complete Experience, Projects & Skills)", value=resume_text, height=160, placeholder="Paste full resume text...")
+    if upload_type == "Paste / Edit Resume Text":
+        resume_text = st.text_area(
+            "Candidate Resume Text", 
+            value=default_resume_text, 
+            height=180, 
+            placeholder="Paste complete resume text here or select a benchmark profile from the sidebar..."
+        )
     else:
         uploaded_pdf = st.file_uploader("Upload Resume PDF (Complete Multi-Page Resume)", type=["pdf"])
         if uploaded_pdf:
             resume_bytes = uploaded_pdf.read()
-        elif resume_bytes:
-            st.info(f"📄 Sample PDF Loaded: `{sample_choice}`")
+        elif benchmark_active:
+            # Fallback to benchmark text when benchmark is active in PDF mode
+            resume_text = default_resume_text
+            st.info(f"✅ Using loaded profile text for `{sample_choice}`.")
 
 # Action Execution Buttons
 st.write("")

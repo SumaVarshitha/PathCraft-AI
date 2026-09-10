@@ -471,11 +471,11 @@ Return ONLY valid JSON:
         scored = []
         target_lower = target_role.lower()
         for role_name, reqs in role_requirements.items():
-            if any(w in target_lower for w in role_name.lower().split() if len(w) > 4):
-                continue  # skip if too similar to target
+            # Skip only if exact target role
+            if role_name.lower() == target_lower or target_lower in role_name.lower() and len(target_lower) > 15:
+                continue
             pct = compute_match(reqs)
-            if pct >= 60:
-                scored.append((pct, role_name, reqs))
+            scored.append((pct, role_name, reqs))
 
         scored.sort(key=lambda x: -x[0])
         for pct, role_name, reqs in scored[:3]:
