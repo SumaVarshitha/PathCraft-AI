@@ -157,7 +157,8 @@ if step_parse_btn or run_pipeline:
     if not resume_text and not resume_bytes:
         st.error("Please upload a PDF resume or paste resume text to proceed.")
     else:
-        with st.spinner("Extracting candidate context and evaluating against live 2026 market standards..."):
+        status_label = "🚀 Running PathCraft AI Multi-Agent Pipeline..." if run_pipeline else "🔍 Ingesting Profile & Verifying Skills..."
+        with st.status(status_label, expanded=True) as status:
             initial_state = {
                 "resume_bytes": resume_bytes,
                 "resume_text": resume_text,
@@ -193,12 +194,16 @@ if step_parse_btn or run_pipeline:
                 "interview_history": [],
                 "interview_turns": []
             }
+            
             if run_pipeline:
+                st.write("🤖 **PathCraft AI Orchestrator**: Running full 10-agent intelligence pipeline...")
                 st.session_state["adk_result"] = st.session_state["adk_team"].run_full_pipeline(initial_state)
-                st.success("✅ Multi-Agent Pipeline Completed!")
+                status.update(label="✅ Complete Multi-Agent Pipeline Executed Successfully!", state="complete", expanded=False)
             else:
-                st.session_state["adk_result"] = st.session_state["adk_team"].parse_profile(initial_state)
-                st.success("✅ Profile Ingestion Complete! Review and confirm your skills below.")
+                st.write("📄 **Agents 1–3**: Parsing profile, GitHub repos & extracting verified entities...")
+                parsed_state = st.session_state["adk_team"].parse_profile(initial_state)
+                st.session_state["adk_result"] = parsed_state
+                status.update(label="✅ Profile Ingestion Complete! Review your verified skills below.", state="complete", expanded=False)
 
 st.divider()
 

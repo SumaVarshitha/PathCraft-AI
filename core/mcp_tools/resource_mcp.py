@@ -24,7 +24,7 @@ class ResourceMCPTool:
         }
         books = []
         try:
-            resp = requests.get(url, params=params, timeout=6)
+            resp = requests.get(url, params=params, timeout=1.5)
             if resp.status_code == 200:
                 items = resp.json().get("items", [])
                 for item in items:
@@ -70,7 +70,7 @@ class ResourceMCPTool:
         }
         papers = []
         try:
-            resp = requests.get(url, params=params, timeout=6)
+            resp = requests.get(url, params=params, timeout=1.5)
             if resp.status_code == 200:
                 root = ET.fromstring(resp.text)
                 ns = {"atom": "http://www.w3.org/2005/Atom"}

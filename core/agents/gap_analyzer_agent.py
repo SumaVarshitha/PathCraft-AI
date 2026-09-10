@@ -246,6 +246,18 @@ class GapAnalyzerADKAgent(ADKAgent):
         verified_core_count = 0
         verified_diff_count = 0
 
+        # Embedding cache to prevent redundant API roundtrips
+        emb_cache: Dict[str, List[float]] = {}
+        def get_cached_embedding(text_snippet: str) -> Optional[List[float]]:
+            clean_s = text_snippet.strip()[:140]
+            if not clean_s or not self.client:
+                return None
+            if clean_s not in emb_cache:
+                emb = self.get_text_embedding(clean_s)
+                if emb:
+                    emb_cache[clean_s] = emb
+            return emb_cache.get(clean_s)
+
         for req_skill, category in all_required:
             best_score = 0.0
             best_matched_item = None
@@ -278,13 +290,12 @@ class GapAnalyzerADKAgent(ADKAgent):
                     if best_score >= 0.90:
                         break
 
-            # Check 3: Gemini Vector Embeddings Cosine Matching
+            # Check 3: Gemini Vector Embeddings Cosine Matching with Cache
             if best_score < 0.90 and self.client:
-                req_emb = self.get_text_embedding(req_skill)
+                req_emb = get_cached_embedding(req_skill)
                 if req_emb:
-                    for cand_text, src in unique_candidate_items:
-                        snippet = cand_text[:140]
-                        c_emb = self.get_text_embedding(snippet)
+                    for cand_text, src in unique_candidate_items[:30]:
+                        c_emb = get_cached_embedding(cand_text)
                         if c_emb:
                             sim = self.compute_cosine_similarity(req_emb, c_emb)
                             if sim > best_score:

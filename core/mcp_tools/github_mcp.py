@@ -56,7 +56,7 @@ class GitHubMCPTool:
         }
         
         try:
-            resp = requests.get(url, headers=self._get_headers(), params=params, timeout=8)
+            resp = requests.get(url, headers=self._get_headers(), params=params, timeout=1.5)
             if resp.status_code == 200:
                 items = resp.json().get("items", [])
                 repos = []
