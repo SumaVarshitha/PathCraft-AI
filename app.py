@@ -314,8 +314,6 @@ with tab_diag:
                     })
                 st.dataframe(table_data, use_container_width=True)
 
-            with st.expander("View Complete Extracted Profile (Work History, Projects, Certifications)"):
-                st.json(res.get("resume_data", {}))
 
         st.divider()
         # ── Skill Correction Panel (Human-in-the-Loop Checkpoint)
