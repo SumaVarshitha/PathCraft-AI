@@ -43,7 +43,7 @@ st.markdown("**Autonomous Multi-Agent Career Platform powered by Google ADK 2.0,
 # One‑time onboarding banner (shows only on first load)
 if "onboard_shown" not in st.session_state:
     st.info(
-        "👋 Welcome to PathCraft AI! To begin, simply upload your resume (PDF or paste the text), provide your public GitHub profile URL, choose the target job role and seniority level you’re aiming for, and finally click **Launch PathCraft AI Multi‑Agent Pipeline**. Once the pipeline finishes, the four interactive hubs will appear below, guiding you through skill‑gap analysis, resume optimisation, a personalised learning roadmap, and a mock interview."
+        "👋 Welcome to PathCraft AI! Upload your resume, pick a target role, and let 10 autonomous agents do the rest. Expand the guide below if you need help getting started."
     )
     st.session_state["onboard_shown"] = True
 
