@@ -131,6 +131,12 @@ class ATSAnalyzerADKAgent(ADKAgent):
         if verb_hits < 3:
             fixes.append("Replace weak/passive phrases ('responsible for', 'worked on') with strong action verbs.")
 
+        # Proactive executive polish recommendations if basic criteria are already met
+        if not fixes:
+            fixes.append("Profile has strong baseline formatting. Emphasize senior architectural ownership and cross-functional leadership in top bullets.")
+            fixes.append("Highlight specific enterprise scale (e.g., QPS throughput, active user volume, cluster size) to strengthen Senior/Staff ATS scoring.")
+            fixes.append("Ensure patent, open-source repository links, and high-impact hackathon achievements are positioned prominently.")
+
         # ── Power bullet rewrites from ACTUAL resume bullets
         real_bullets = [l for l in lines if l.startswith(("- ", "• ", "* ")) and len(l) > 30]
         power_rewrites = []

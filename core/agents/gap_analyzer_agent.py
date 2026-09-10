@@ -4,27 +4,26 @@ import re
 import math
 import json
 from typing import List, Dict, Any, Optional, Tuple
-from google.genai import types
 import config
 from core.adk_agent import ADKAgent
 from core.state import SkillGapResult, SemanticMatchItem
 from core.agents.skill_normalizer_agent import normalize_skill_name, fuzzy_skill_match, token_exact_match
 
+# Overly generic single-word terms that must not falsely trigger a complete skill match on their own
+GENERIC_STOPWORDS = {"ai", "ml", "data", "cloud", "systems", "code", "app", "api", "apis", "tool", "tools", "and", "or", "for", "with", "the"}
+
 def split_compound_skill(skill_str: str) -> List[str]:
-    """Splits compound skills into atomic testable components."""
-    parts = re.split(r'[/&+,]+|\band\b', skill_str, flags=re.IGNORECASE)
+    """Splits compound skills into precise, high-signal atomic components without loose generic stopwords."""
+    clean_skill = skill_str.strip()
+    parts = re.split(r'\s+/\s+|\s*&\s*|\s*,\s*|\s*\+\s*|\band\b', clean_skill, flags=re.IGNORECASE)
     atoms = []
     for p in parts:
         clean = p.strip()
-        if clean and len(clean) > 1:
+        if clean and len(clean) >= 2 and clean.lower() not in GENERIC_STOPWORDS:
             atoms.append(clean)
-            if "multi-agent" in clean.lower():
-                atoms.extend(["multi-agent", "agentic", "agents", "multi agent"])
-            if "vector" in clean.lower():
-                atoms.extend(["vector", "vector database", "vector db", "vector search"])
-            if "ci/cd" in clean.lower() or "cicd" in clean.lower():
-                atoms.extend(["ci/cd", "cicd", "jenkins", "github actions"])
-    return atoms if atoms else [skill_str.strip()]
+    if clean_skill not in atoms:
+        atoms.insert(0, clean_skill)
+    return atoms if atoms else [clean_skill]
 
 HIGH_VALUE_SUPERPOWERS = [
     "LangGraph", "Multi-Agent Systems", "RAG", "Retrieval-Augmented Generation", "Tool-Calling",

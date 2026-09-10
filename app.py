@@ -389,8 +389,12 @@ with tab_resume:
                     st.markdown(f"• {s}")
             with col_fix:
                 st.markdown("**Critical Fixes Recommended:**")
-                for f in ats.get("critical_fixes", []):
-                    st.markdown(f"• {f}")
+                fixes_list = ats.get("critical_fixes", [])
+                if fixes_list:
+                    for f in fixes_list:
+                        st.markdown(f"• {f}")
+                else:
+                    st.markdown("• Profile satisfies core ATS requirements with high keyword alignment.")
 
         # ── Proposed Surgical Enhancements with HITL Checkbox Approvals
         key_changes = tailored.get("key_changes", [])
