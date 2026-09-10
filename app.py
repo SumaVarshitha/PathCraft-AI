@@ -150,23 +150,16 @@ with col_input:
             resume_text = default_resume_text
             st.info(f"✅ Using loaded profile text for `{sample_choice}`.")
 
-# Action Execution Buttons
+# Action Execution Button
 st.write("")
-col_btn1, col_btn2 = st.columns([1, 1])
+run_pipeline = st.button("🚀 Launch PathCraft AI Multi-Agent Pipeline", type="primary", use_container_width=True)
 
-with col_btn1:
-    run_pipeline = st.button("🚀 Run Complete Career Copilot Pipeline", type="primary", use_container_width=True)
-
-with col_btn2:
-    step_parse_btn = st.button("🔍 Step 1: Parse Profile & Verify Skills (HITL)", use_container_width=True)
-
-# Step 1 Profile Ingestion
-if step_parse_btn or run_pipeline:
+# Profile Ingestion & Full Pipeline Execution
+if run_pipeline:
     if not resume_text and not resume_bytes:
-        st.error("Please upload a PDF resume or paste resume text to proceed.")
+        st.error("Please upload a PDF resume, paste resume text, or select a benchmark profile from the sidebar to proceed.")
     else:
-        status_label = "🚀 Running PathCraft AI Multi-Agent Pipeline..." if run_pipeline else "🔍 Ingesting Profile & Verifying Skills..."
-        with st.status(status_label, expanded=True) as status:
+        with st.status("🚀 Running PathCraft AI Multi-Agent Pipeline...", expanded=True) as status:
             initial_state = {
                 "resume_bytes": resume_bytes,
                 "resume_text": resume_text,
@@ -203,15 +196,9 @@ if step_parse_btn or run_pipeline:
                 "interview_turns": []
             }
             
-            if run_pipeline:
-                st.write("🤖 **PathCraft AI Orchestrator**: Running full 10-agent intelligence pipeline...")
-                st.session_state["adk_result"] = st.session_state["adk_team"].run_full_pipeline(initial_state)
-                status.update(label="✅ Complete Multi-Agent Pipeline Executed Successfully!", state="complete", expanded=False)
-            else:
-                st.write("📄 **Agents 1–3**: Parsing profile, GitHub repos & extracting verified entities...")
-                parsed_state = st.session_state["adk_team"].parse_profile(initial_state)
-                st.session_state["adk_result"] = parsed_state
-                status.update(label="✅ Profile Ingestion Complete! Review your verified skills below.", state="complete", expanded=False)
+            st.write("🤖 **PathCraft AI Orchestrator**: Running full 10-agent intelligence pipeline...")
+            st.session_state["adk_result"] = st.session_state["adk_team"].run_full_pipeline(initial_state)
+            status.update(label="✅ Complete Multi-Agent Pipeline Executed Successfully!", state="complete", expanded=False)
 
 st.divider()
 
@@ -320,27 +307,27 @@ with tab_diag:
                 st.json(res.get("resume_data", {}))
 
         st.divider()
-        # ── Skill Correction Panel (moved below analysis, non-intrusive)
-        with st.expander("Correct Extracted Skills — Add Missing or Remove Incorrect Skills", expanded=False):
-            st.caption("The analysis already scans your full work history, projects, and certifications for evidence. Use this panel only if a skill is missing or incorrectly extracted.")
+        # ── Skill Correction Panel (Human-in-the-Loop Checkpoint)
+        with st.expander("🛡️ Human-in-the-Loop (HITL) Checkpoint — Review & Fine-Tune Extracted Skills", expanded=False):
+            st.caption("🤝 **Human-in-the-Loop (HITL) Oversight**: The AI automatically extracts skills across your resume and GitHub. Use this checkpoint to add missing competencies or remove inaccurate extractions, then re-run the pipeline with your verified human input.")
             current_skills = res.get("user_confirmed_skills") or res.get("unified_skills", [])
 
             col_add, col_sel = st.columns([1, 2])
             with col_add:
                 new_skill = st.text_input("Add a Missing Skill", placeholder="e.g. LangGraph, RAG, dbt")
-                if st.button("Add Skill"):
+                if st.button("➕ Add Skill"):
                     if new_skill and new_skill.strip() not in current_skills:
                         current_skills.append(new_skill.strip())
                         res["user_confirmed_skills"] = current_skills
                         st.rerun()
 
             with col_sel:
-                confirmed = st.multiselect("Current Skills List (uncheck to remove)", options=current_skills, default=current_skills)
+                confirmed = st.multiselect("Verified Skills List (uncheck to remove)", options=current_skills, default=current_skills)
                 if confirmed != current_skills:
                     res["user_confirmed_skills"] = confirmed
 
-            if st.button("Re-run Skill Gap Analysis with Updated Skills", type="primary"):
-                with st.spinner("Re-analyzing against live 2026 market requirements..."):
+            if st.button("🔄 Re-run Pipeline with Confirmed Human Input", type="primary"):
+                with st.spinner("Re-analyzing with human-confirmed skill inputs against live 2026 market standards..."):
                     res = st.session_state["adk_team"].run_full_pipeline(res)
                     st.session_state["adk_result"] = res
                     st.rerun()
