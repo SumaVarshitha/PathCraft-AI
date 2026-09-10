@@ -34,6 +34,30 @@ if "current_question_data" not in st.session_state:
 if "interview_finished" not in st.session_state:
     st.session_state["interview_finished"] = False
 
+# One‑time onboarding banner (shows only on first load)
+if "onboard_shown" not in st.session_state:
+    st.info(
+        "👋 Welcome! Upload a resume, add your GitHub profile URL, select a target role and seniority level, then click **Launch PathCraft AI Multi‑Agent Pipeline**. The four hubs will populate automatically."
+    )
+    st.session_state["onboard_shown"] = True
+
+# Quick‑use help expander (optional, collapsible)
+with st.expander("❓ How to use PathCraft AI (quick guide)"):
+    st.markdown(
+        """
+        1. **Upload / paste** your resume.
+        2. **Add** your public GitHub URL.
+        3. **Select** target role & seniority.
+        4. **Press** **Launch PathCraft AI Multi‑Agent Pipeline**.
+        5. Explore the four hubs:
+           - 📊 **Skill Gap Diagnostic** – core vs. differentiator scores.
+           - ✍️ **Resume Optimizer** – ATS score boost & PDF export.
+           - 📅 **30‑60‑90 Roadmap** – study‑budget slider & curated resources.
+           - 🎙️ **Mock Interview** – AI‑generated questions & instant rubric.
+        """
+    )
+
+
 # App Header
 st.title("🚀 PathCraft AI - Enterprise Career & Skill Intelligence")
 st.markdown("**Autonomous Multi-Agent Career Platform powered by Google ADK 2.0, Gemini 2.5 Flash, Dynamic Search Grounding & MCP Tools**")
