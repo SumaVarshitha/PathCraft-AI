@@ -241,19 +241,30 @@ with tab_diag:
         # GitHub Profile Card
         gh_data = res.get("github_data")
         if gh_data and (gh_data.get("languages") or gh_data.get("top_repositories")):
-            with st.expander(f"🐙 GitHub Profile: `{gh_data.get('username', '')}` — Verified Repos & Languages", expanded=True):
+            with st.expander(f"🐙 GitHub Profile: `{gh_data.get('username', '')}` — Verified Technical Evidence", expanded=True):
                 gh_langs = gh_data.get("languages", [])
                 if gh_langs:
-                    st.markdown("**Languages detected across public repos:**")
+                    st.markdown("**Verified Programming Languages:**")
                     st.write("  ".join([f"`{l}`" for l in gh_langs]))
+                
                 gh_repos = gh_data.get("top_repositories", [])
                 if gh_repos:
-                    st.markdown("**Top Public Repositories:**")
+                    st.markdown("**Top Public Repositories & Inferred Technical Scope:**")
                     for repo in gh_repos:
-                        lang_badge = f" · `{repo.get('language')}`" if repo.get("language") else ""
-                        stars = f" ⭐ {repo.get('stars', 0)}" if repo.get("stars", 0) > 0 else ""
-                        desc = f" — {repo.get('description', '')}" if repo.get("description") else ""
-                        st.markdown(f"• **{repo.get('name', '')}**{lang_badge}{stars}{desc}")
+                        repo_name = repo.get("name", "Repository")
+                        url = repo.get("html_url") or f"https://github.com/{gh_data.get('username')}/{repo_name}"
+                        lang = repo.get("language")
+                        lang_badge = f" · `{lang}`" if lang else ""
+                        stars = f" · ⭐ {repo.get('stars', 0)}" if repo.get("stars", 0) > 0 else ""
+                        forks = f" · 🍴 {repo.get('forks', 0)}" if repo.get("forks", 0) > 0 else ""
+                        desc = repo.get("description") or "Open-source software project implementing core architectural modules."
+                        topics = repo.get("topics", [])
+                        topic_str = f" `{'` `'.join(topics)}`" if topics else ""
+                        
+                        st.markdown(
+                            f"• **[{repo_name}]({url})**{lang_badge}{stars}{forks}{topic_str}\n\n"
+                            f"  &nbsp;&nbsp;&nbsp;_{desc}_"
+                        )
 
         if res.get("match_score") is not None and res.get("match_score") > 0:
             st.info(f"**Market Data Source**: `{res.get('analysis_method', 'Live 2026 Market Search Grounding')}`")

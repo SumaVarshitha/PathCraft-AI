@@ -71,6 +71,9 @@ class CareerCopilotADKTeam:
                         "name": r.get("name", ""),
                         "language": r.get("language", ""),
                         "stars": r.get("stars", 0),
+                        "forks": r.get("forks", 0),
+                        "html_url": r.get("html_url", ""),
+                        "topics": r.get("topics", []),
                         "description": r.get("description", "")
                     }
                     for r in github_data.get("top_repos", [])
