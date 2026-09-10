@@ -36,17 +36,25 @@ if "interview_finished" not in st.session_state:
 
 # App Header
 st.title("🚀 PathCraft AI - Enterprise Career & Skill Intelligence")
-st.markdown("**Autonomous Multi-Agent Career Platform powered by Google ADK 2.0, Gemini 2.5, Dynamic Search Grounding & MCP Tools**")
+st.markdown("**Autonomous Multi-Agent Career Platform powered by Google ADK 2.0, Gemini 2.5 Flash, Dynamic Search Grounding & MCP Tools**")
 
 # Sidebar Configuration
 st.sidebar.header("🔑 Google ADK 2.0 Engine Settings")
-user_api_key = st.sidebar.text_input("Google API Key", value=os.getenv("GOOGLE_API_KEY", ""), type="password")
+user_api_key = st.sidebar.text_input(
+    "Google API Key (Optional)", 
+    value="", 
+    type="password",
+    help="Enter your own Gemini API Key to test with your custom quota/key."
+)
 
-if user_api_key:
-    os.environ["GOOGLE_API_KEY"] = user_api_key
-
-if not os.getenv("GOOGLE_API_KEY"):
+if user_api_key.strip():
+    os.environ["GOOGLE_API_KEY"] = user_api_key.strip()
+    st.sidebar.success("✅ Custom API Key Active")
+elif os.getenv("GOOGLE_API_KEY"):
+    st.sidebar.info("⚡ Using Default System API Key")
+else:
     st.sidebar.warning("⚠️ Enter a `GOOGLE_API_KEY` to enable Live Search Grounding & Gemini Embeddings.")
+
 
 # Benchmark Profiles Selector in Sidebar
 st.sidebar.divider()

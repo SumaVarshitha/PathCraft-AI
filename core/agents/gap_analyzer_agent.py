@@ -47,7 +47,7 @@ class GapAnalyzerADKAgent(ADKAgent):
         super().__init__(
             name="GapAnalyzerADKAgent",
             instruction="Conduct precise meaning-based semantic skill gap analysis and surface candidate superpowers.",
-            model=config.MODEL_FLASH,
+            model=config.MODEL_PRO,
             output_schema=SkillGapResult,
             temperature=0.1
         )

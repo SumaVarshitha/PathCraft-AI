@@ -20,7 +20,7 @@ class InterviewSimulatorADKAgent(ADKAgent):
         super().__init__(
             name="InterviewSimulatorADKAgent",
             instruction="Conduct rigorous, realistic multi-turn technical interviews for engineering roles.",
-            model=config.MODEL_FLASH,
+            model=config.MODEL_PRO,
             temperature=0.3
         )
 

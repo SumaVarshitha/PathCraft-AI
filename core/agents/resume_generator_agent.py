@@ -1,5 +1,6 @@
 import os
 import io
+import html
 import re as _re
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
@@ -24,6 +25,7 @@ class InPlaceResumeOptimizationResult(BaseModel):
 class ResumeGeneratorADKAgent(ADKAgent):
     """
     Google ADK 2.0 In-Place Authentic Resume Optimizer Agent
+    - Powered by Gemini Pro (MODEL_PRO) with resilience fallback to Flash tiers.
     - Takes the candidate's EXACT original uploaded resume text.
     - Preserves 100% of authentic career history, companies, job titles, dates, and projects.
     - Surgically upgrades bullet points using Google's XYZ formula:
@@ -47,7 +49,7 @@ class ResumeGeneratorADKAgent(ADKAgent):
         super().__init__(
             name="ResumeGeneratorADKAgent",
             instruction=instruction,
-            model=config.MODEL_FLASH,
+            model=config.MODEL_PRO,
             output_schema=InPlaceResumeOptimizationResult,
             temperature=0.2
         )
@@ -123,26 +125,37 @@ class ResumeGeneratorADKAgent(ADKAgent):
                 "rationale": "Optimized bullet points for ATS keyword relevance."
             })
 
+        # Compute dynamic ATS scores based on keyword coverage and bullet upgrades
+        base_keyword_hits = sum(1 for sk in missing_skills if sk.lower() in raw_resume_text.lower())
+        total_gaps = len(missing_skills) if missing_skills else 1
+        kw_ratio_before = base_keyword_hits / total_gaps
+        
+        score_before = min(85, max(45, int(55 + 25 * kw_ratio_before)))
+        boost = min(25, len(key_changes) * 6 + 10)
+        score_after = min(98, score_before + boost)
+
         return {
             "candidate_name": candidate_name,
             "target_role": target_role,
             "original_text": raw_resume_text,
             "optimized_text": optimized_text,
             "key_changes": key_changes[:4],
-            "ats_score_before": 70,
-            "ats_score_after": 92
+            "ats_score_before": score_before,
+            "ats_score_after": score_after
         }
 
 
-def _md_to_rl(text: str) -> str:
-    """Convert markdown bold/italic/code to ReportLab XML tags, escaping XML first."""
-    text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-    text = _re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
-    text = _re.sub(r'__(.+?)__', r'<b>\1</b>', text)
-    text = _re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
-    text = _re.sub(r'_([^_]+?)_', r'<i>\1</i>', text)
-    text = _re.sub(r'`(.+?)`', r'<font face="Courier">\1</font>', text)
-    return text
+def _clean_xml_text(text: str) -> str:
+    """Escapes raw XML special characters and converts basic markdown formatting to valid ReportLab XML."""
+    # First escape XML special entities safely
+    s = html.escape(text)
+    # Convert escaped markdown tags back to valid ReportLab XML tags
+    s = _re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', s)
+    s = _re.sub(r'__(.*?)__', r'<b>\1</b>', s)
+    s = _re.sub(r'\*(.*?)\*', r'<i>\1</i>', s)
+    s = _re.sub(r'_([^_]+?)_', r'<i>\1</i>', s)
+    s = _re.sub(r'`(.*?)`', r'<font face="Courier">\1</font>', s)
+    return s
 
 
 def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
@@ -156,7 +169,7 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
     """
     try:
         from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
 
@@ -209,12 +222,22 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
             textColor=colors.HexColor('#1E293B'), spaceAfter=2
         )
 
+        def make_paragraph(raw_text: str, style):
+            """Safely creates a Paragraph flowable, handling XML exceptions gracefully."""
+            formatted = _clean_xml_text(raw_text)
+            try:
+                return Paragraph(formatted, style)
+            except Exception:
+                # Strip all XML/HTML tags if ReportLab parser fails and use clean plain text
+                plain = html.escape(_re.sub(r'<[^>]*>', '', raw_text))
+                return Paragraph(plain, style)
+
         story = []
         text_content = tailored_data.get("optimized_text") or tailored_data.get("markdown_content") or ""
         lines = [l.strip() for l in text_content.split("\n") if l.strip()]
 
         if not lines:
-            story.append(Paragraph("Empty Resume Content", body_style))
+            story.append(make_paragraph("Empty Resume Content", body_style))
             doc.build(story)
             return buffer.getvalue()
 
@@ -230,12 +253,12 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
             cand_name = tailored_data.get("candidate_name", "Candidate")
 
         # Add Name Banner
-        story.append(Paragraph(cand_name.upper(), name_style))
+        story.append(make_paragraph(cand_name.upper(), name_style))
 
         # Check if next line is Contact Info (contains @ or | or http)
         if lines and any(c in lines[0] for c in ["@", "http", "|", "+91", ".com"]):
             contact_line = lines[0]
-            story.append(Paragraph(_md_to_rl(contact_line), contact_style))
+            story.append(make_paragraph(contact_line, contact_style))
             lines = lines[1:]
 
         story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1E3A8A'), spaceAfter=6))
@@ -250,45 +273,89 @@ def generate_ats_pdf(tailored_data: Dict[str, Any]) -> bytes:
             if stripped.startswith("## ") or stripped.startswith("# ") or (stripped.isupper() and len(stripped) < 35 and not any(c in stripped for c in ["|", "–", "-"])):
                 header_text = stripped.replace("## ", "").replace("# ", "").strip()
                 story.append(Spacer(1, 4))
-                story.append(Paragraph(header_text.upper(), section_style))
+                story.append(make_paragraph(header_text.upper(), section_style))
                 story.append(HRFlowable(width="100%", thickness=0.6, color=colors.HexColor('#CBD5E1'), spaceAfter=3))
 
             # Job Header with Pipe (e.g. Senior DevOps & AI Engineer | SAP Labs India | Sep 2023 – Present)
             elif "|" in stripped and ("present" in stripped.lower() or any(yr in stripped for yr in ["2020", "2021", "2022", "2023", "2024", "2025", "2026"])):
                 parts = [p.strip() for p in stripped.split("|")]
                 if len(parts) >= 2:
-                    title_comp = f"<b>{parts[0]}</b> &nbsp;|&nbsp; <i>{parts[1]}</i>"
-                    story.append(Paragraph(title_comp, role_company_style))
+                    title_comp = f"**{parts[0]}** | *{parts[1]}*"
+                    story.append(make_paragraph(title_comp, role_company_style))
                     if len(parts) >= 3:
-                        story.append(Paragraph(parts[2], duration_style))
+                        story.append(make_paragraph(parts[2], duration_style))
                 else:
-                    story.append(Paragraph(_md_to_rl(stripped), role_company_style))
+                    story.append(make_paragraph(stripped, role_company_style))
 
             # Markdown H3 / H4
             elif stripped.startswith("### "):
-                content = _md_to_rl(stripped[4:].strip())
-                story.append(Paragraph(content, role_company_style))
+                story.append(make_paragraph(stripped[4:].strip(), role_company_style))
 
             elif stripped.startswith("#### "):
-                content = _md_to_rl(stripped[5:].strip())
-                story.append(Paragraph(content, duration_style))
+                story.append(make_paragraph(stripped[5:].strip(), duration_style))
 
             # Bullet Points
             elif stripped.startswith(("- ", "• ", "* ")):
-                bullet_text = _md_to_rl(stripped[2:].strip())
-                story.append(Paragraph(f"• {bullet_text}", bullet_style))
+                bullet_text = stripped[2:].strip()
+                story.append(make_paragraph(f"• {bullet_text}", bullet_style))
 
             # Horizontal line
             elif stripped in ("---", "***", "___"):
                 story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#CBD5E1'), spaceAfter=2))
 
             else:
-                story.append(Paragraph(_md_to_rl(stripped), body_style))
+                story.append(make_paragraph(stripped, body_style))
 
         doc.build(story)
         return buffer.getvalue()
 
     except Exception as e:
-        print(f"[PDF Generation Notice]: {e}", flush=True)
-        text_out = tailored_data.get("optimized_text", "")
-        return text_out.encode("utf-8")
+        print(f"[PDF Generation Fallback]: ({e}). Building clean Canvas PDF.", flush=True)
+        # Fallback to direct ReportLab Canvas drawing so a valid, styled PDF binary is ALWAYS returned
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.pdfgen import canvas
+            buffer = io.BytesIO()
+            c = canvas.Canvas(buffer, pagesize=letter)
+            width, height = letter
+            y = height - 40
+            
+            c.setFont("Helvetica-Bold", 16)
+            c.setFillColorRGB(0.06, 0.09, 0.16) # #0F172A
+            cand_name = tailored_data.get("candidate_name", "CANDIDATE RESUME").upper()
+            c.drawString(36, y, cand_name)
+            y -= 15
+
+            c.setStrokeColorRGB(0.12, 0.23, 0.54) # #1E3A8A
+            c.setLineWidth(1.5)
+            c.line(36, y, width - 36, y)
+            y -= 20
+
+            c.setFont("Helvetica", 9)
+            c.setFillColorRGB(0.12, 0.16, 0.23) # #1E293B
+            
+            text_out = tailored_data.get("optimized_text", "")
+            for line in text_out.split("\n"):
+                if y < 40:
+                    c.showPage()
+                    y = height - 40
+                    c.setFont("Helvetica", 9)
+                    c.setFillColorRGB(0.12, 0.16, 0.23)
+                
+                line_str = line.strip()
+                if line_str.isupper() and len(line_str) < 35:
+                    c.setFont("Helvetica-Bold", 11)
+                    c.setFillColorRGB(0.12, 0.23, 0.54)
+                    c.drawString(36, y, line_str)
+                    y -= 15
+                    c.setFont("Helvetica", 9)
+                    c.setFillColorRGB(0.12, 0.16, 0.23)
+                else:
+                    c.drawString(36, y, line_str[:110])
+                    y -= 13
+            
+            c.save()
+            return buffer.getvalue()
+        except Exception as inner_e:
+            print(f"[PDF Generation Canvas Emergency]: {inner_e}", flush=True)
+            return (tailored_data.get("optimized_text", "")).encode("utf-8")

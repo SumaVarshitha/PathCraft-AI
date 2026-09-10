@@ -59,7 +59,7 @@ class ATSAnalyzerADKAgent(ADKAgent):
         super().__init__(
             name="ATSAnalyzerADKAgent",
             instruction=instruction,
-            model=config.MODEL_FLASH,
+            model=config.MODEL_PRO,
             output_schema=ATSAuditResult,
             temperature=0.1
         )
