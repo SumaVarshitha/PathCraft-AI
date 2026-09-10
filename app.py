@@ -392,28 +392,51 @@ with tab_resume:
                 for f in ats.get("critical_fixes", []):
                     st.markdown(f"• {f}")
 
-        # ── What was changed
+        # ── Proposed Surgical Enhancements with HITL Checkbox Approvals
         key_changes = tailored.get("key_changes", [])
+        applied_changes = []
         if key_changes:
             st.divider()
-            st.markdown("##### What Was Improved")
-            for chg in key_changes:
+            st.markdown("##### 🔍 Proposed Surgical Enhancements (Review & Select Which Changes to Apply)")
+            st.caption("Review each targeted enhancement. Check the boxes for the improvements you want applied to your authentic resume:")
+            
+            for i, chg in enumerate(key_changes):
                 with st.container(border=True):
-                    st.markdown(f"**Before:** *\"{chg.get('original_snippet')}\"*")
-                    st.markdown(f"**After:** **\"{chg.get('improved_snippet')}\"**")
-                    st.caption(f"Why: {chg.get('rationale')}")
+                    c_col1, c_col2 = st.columns([0.85, 0.15])
+                    with c_col1:
+                        st.markdown(f"**Original:** *\"{chg.get('original_snippet')}\"*")
+                        st.markdown(f"**Proposed Enhancement:** **\"{chg.get('improved_snippet')}\"**")
+                        st.caption(f"💡 *Rationale:* {chg.get('rationale')}")
+                    with c_col2:
+                        accept = st.checkbox("Apply", value=True, key=f"apply_enhancement_{i}")
+                        if accept:
+                            applied_changes.append(chg)
 
         # ── Version selector: use optimized or revert to original
         st.divider()
         use_original = st.toggle(
-            "Use Original Resume (revert all optimizations)",
+            "Use 100% Original Resume (revert all optimizations)",
             value=False,
-            help="Switch to your original uploaded resume if you prefer it over the optimized version."
+            help="Switch to your original uploaded resume without any modifications."
         )
 
         original_text = tailored.get("original_text") or res.get("resume_text", "")
-        optimized_text = tailored.get("optimized_text", "")
+        
+        # Dynamically build optimized text based only on accepted changes
+        custom_optimized_text = original_text
+        for chg in applied_changes:
+            orig_snip = chg.get("original_snippet", "").strip()
+            imp_snip = chg.get("improved_snippet", "").strip()
+            if orig_snip and imp_snip and orig_snip in custom_optimized_text:
+                custom_optimized_text = custom_optimized_text.replace(orig_snip, imp_snip)
+            elif orig_snip and imp_snip:
+                # Also try without leading bullet symbols
+                orig_clean = orig_snip.lstrip("-•* ").strip()
+                imp_clean = imp_snip.lstrip("-•* ").strip()
+                if orig_clean in custom_optimized_text:
+                    custom_optimized_text = custom_optimized_text.replace(orig_clean, imp_clean)
 
+        optimized_text = custom_optimized_text if applied_changes else tailored.get("optimized_text", original_text)
         active_text = original_text if use_original else optimized_text
 
         # ── Side-by-Side Comparison with diff highlighting
